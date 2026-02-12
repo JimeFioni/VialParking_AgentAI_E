@@ -1,0 +1,42 @@
+# Backend Framework
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+pydantic>=2.5.3
+python-multipart>=0.0.6
+
+# AI & Machine Learning
+google-generativeai>=0.8.0
+
+# Google APIs
+gspread>=6.0.0
+google-auth>=2.34.0
+google-auth-oauthlib>=1.2.0
+google-auth-httplib2>=0.2.0
+google-api-python-client>=2.108.0
+
+# WhatsApp & Communication
+twilio>=9.0.0
+httpx>=0.27.0
+requests>=2.31.0
+
+# Database
+sqlalchemy>=2.0.25
+pandas>=2.1.4
+
+# Geolocation & Maps
+geopy>=2.4.1
+folium>=0.15.1
+
+# Dashboard & Visualization
+streamlit>=1.39.0
+streamlit-folium>=0.22.0
+plotly>=5.18.0
+
+# Image Processing
+pillow>=10.4.0
+
+# Utilities
+python-dotenv>=1.0.0
+phonenumbers>=8.13.27
+python-dateutil>=2.8.2
+colorama>=0.4.6

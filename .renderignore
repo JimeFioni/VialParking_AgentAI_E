@@ -1,0 +1,13 @@
+vialp/
+__pycache__/
+*.pyc
+.env
+.DS_Store
+dashboard/
+data/
+*.log
+ngrok_url.txt
+webhook_url.txt
+ngrok_monitor.log
+start_ngrok.sh
+keep_ngrok_alive.sh

@@ -1,0 +1,42 @@
+services:
+  - type: web
+    name: ecogas-vialparking-api
+    env: python
+    region: oregon
+    plan: free
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GOOGLE_SHEETS_CREDENTIALS_PATH
+        value: credentials.json
+      - key: ACCIONES_SHEET_ID
+        sync: false
+      - key: DATABASE_SHEET_ID
+        sync: false
+      - key: ECOGAS_SHEET_ID
+        sync: false
+      - key: OUTPUT_SHEET_ID
+        sync: false
+      - key: STOCK_DRIVE_FOLDER_ID
+        sync: false
+      - key: IMAGENES_CARTELES_FOLDER_ID
+        sync: false
+      - key: OUTPUT_IMAGENES_FOLDER_ID
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_WHATSAPP_NUMBER
+        sync: false
+      - key: API_HOST
+        value: 0.0.0.0
+      - key: STOCK_ALERT_THRESHOLD
+        value: 10
+      - key: ADMIN_WHATSAPP_NUMBER
+        sync: false
