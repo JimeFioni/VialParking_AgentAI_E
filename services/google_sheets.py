@@ -9,27 +9,41 @@ from typing import List, Dict, Optional, Any
 from datetime import datetime
 from dotenv import load_dotenv
 import io
+import json
 
 load_dotenv()
 
 
 class GoogleSheetsService:
     def __init__(self):
-        credentials_path = os.getenv("GOOGLE_SHEETS_CREDENTIALS_PATH", "credentials.json")
-        
-        if not os.path.exists(credentials_path):
-            raise FileNotFoundError(
-                f"Archivo de credenciales no encontrado: {credentials_path}\n"
-                "Descarga las credenciales desde Google Cloud Console"
-            )
-        
         scopes = [
             'https://www.googleapis.com/auth/spreadsheets',
             'https://www.googleapis.com/auth/drive'
         ]
         
-        # Service account para Sheets (funciona bien)
-        creds = Credentials.from_service_account_file(credentials_path, scopes=scopes)
+        # Intentar leer credenciales desde Streamlit secrets (producción)
+        creds = None
+        try:
+            import streamlit as st
+            if hasattr(st, 'secrets') and 'GOOGLE_SHEETS_CREDENTIALS_JSON' in st.secrets:
+                print("✅ Usando credenciales desde Streamlit secrets")
+                creds_dict = json.loads(st.secrets['GOOGLE_SHEETS_CREDENTIALS_JSON'])
+                creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+        except (ImportError, Exception) as e:
+            # No está en Streamlit o no hay secrets configurados
+            pass
+        
+        # Si no hay credenciales desde secrets, usar archivo local
+        if creds is None:
+            credentials_path = os.getenv("GOOGLE_SHEETS_CREDENTIALS_PATH", "credentials.json")
+            if not os.path.exists(credentials_path):
+                raise FileNotFoundError(
+                    f"Archivo de credenciales no encontrado: {credentials_path}\n"
+                    "Descarga las credenciales desde Google Cloud Console"
+                )
+            print("✅ Usando credenciales desde archivo local")
+            creds = Credentials.from_service_account_file(credentials_path, scopes=scopes)
+        
         self.client = gspread.authorize(creds)
         
         # OAuth para Drive (evita problemas de cuota)
@@ -40,15 +54,30 @@ class GoogleSheetsService:
             print("⚠️  Usando service account para Drive (puede tener limitaciones)")
             self.drive_service = build('drive', 'v3', credentials=creds)
         
-        # IDs de las hojas
-        self.acciones_sheet_id = os.getenv("ACCIONES_SHEET_ID")
-        self.database_sheet_id = os.getenv("DATABASE_SHEET_ID")
-        self.stock_folder_id = os.getenv("STOCK_DRIVE_FOLDER_ID")
-        self.ecogas_sheet_id = os.getenv("ECOGAS_SHEET_ID")  # Planilla INPUT de ECOGAS
-        self.output_sheet_id = os.getenv("OUTPUT_SHEET_ID")  # Planilla OUTPUT para registrar trabajos
-        self.whatsapp_log_sheet_id = os.getenv("WHATSAPP_LOG_SHEET_ID", self.output_sheet_id)  # LOG de WhatsApp
-        self.imagenes_carteles_folder_id = os.getenv("IMAGENES_CARTELES_FOLDER_ID")
-        self.output_imagenes_folder_id = os.getenv("OUTPUT_IMAGENES_FOLDER_ID")
+        # IDs de las hojas - leer desde secrets o env
+        try:
+            import streamlit as st
+            if hasattr(st, 'secrets'):
+                self.acciones_sheet_id = st.secrets.get("ACCIONES_SHEET_ID", os.getenv("ACCIONES_SHEET_ID"))
+                self.database_sheet_id = st.secrets.get("DATABASE_SHEET_ID", os.getenv("DATABASE_SHEET_ID"))
+                self.stock_folder_id = st.secrets.get("STOCK_DRIVE_FOLDER_ID", os.getenv("STOCK_DRIVE_FOLDER_ID"))
+                self.ecogas_sheet_id = st.secrets.get("ECOGAS_SHEET_ID", os.getenv("ECOGAS_SHEET_ID"))
+                self.output_sheet_id = st.secrets.get("OUTPUT_SHEET_ID", os.getenv("OUTPUT_SHEET_ID"))
+                self.whatsapp_log_sheet_id = st.secrets.get("WHATSAPP_LOG_SHEET_ID", os.getenv("WHATSAPP_LOG_SHEET_ID", self.output_sheet_id))
+                self.imagenes_carteles_folder_id = st.secrets.get("IMAGENES_CARTELES_FOLDER_ID", os.getenv("IMAGENES_CARTELES_FOLDER_ID"))
+                self.output_imagenes_folder_id = st.secrets.get("OUTPUT_IMAGENES_FOLDER_ID", os.getenv("OUTPUT_IMAGENES_FOLDER_ID"))
+            else:
+                raise ImportError
+        except (ImportError, Exception):
+            # Usar variables de entorno (desarrollo local o Render)
+            self.acciones_sheet_id = os.getenv("ACCIONES_SHEET_ID")
+            self.database_sheet_id = os.getenv("DATABASE_SHEET_ID")
+            self.stock_folder_id = os.getenv("STOCK_DRIVE_FOLDER_ID")
+            self.ecogas_sheet_id = os.getenv("ECOGAS_SHEET_ID")
+            self.output_sheet_id = os.getenv("OUTPUT_SHEET_ID")
+            self.whatsapp_log_sheet_id = os.getenv("WHATSAPP_LOG_SHEET_ID", self.output_sheet_id)
+            self.imagenes_carteles_folder_id = os.getenv("IMAGENES_CARTELES_FOLDER_ID")
+            self.output_imagenes_folder_id = os.getenv("OUTPUT_IMAGENES_FOLDER_ID")
         
         # Cache de las hojas de base de datos
         self._db_sheet = None
