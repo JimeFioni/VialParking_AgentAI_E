@@ -2681,8 +2681,8 @@ st.markdown("---")
 col_f1, col_f2, col_f3 = st.columns(3)
 
 with col_f1:
-    st.caption("🚦 **Vial Parking**")
-    st.caption("Sistema de Gestión ECOGAS")
+    st.caption("🚦 **VIALPARKING SA**")
+    st.caption("Al Servicio de ECOGAS")
 
 with col_f2:
     st.caption("🌎 Ramales de Gasoductos")
