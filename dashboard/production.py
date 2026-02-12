@@ -624,7 +624,7 @@ def get_items_en_proceso_cached():
             return set()
     return set()
 
-@st.cache_data(ttl=10, show_spinner="🔄 Actualizando datos...")  # Cache de 10 segundos
+@st.cache_data(ttl=3, show_spinner="🔄 Actualizando datos...")  # Cache de 3 segundos
 def get_trabajos_output():
     """Lee trabajos completados desde la planilla OUTPUT"""
     if sheets_service:

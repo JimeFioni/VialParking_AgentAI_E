@@ -1,7 +1,7 @@
 services:
   - type: web
     name: ecogas-vialparking-api
-    env: python
+    runtime: python
     region: oregon
     plan: free
     branch: main
