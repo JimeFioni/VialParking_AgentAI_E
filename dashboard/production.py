@@ -634,21 +634,10 @@ def get_trabajos_output():
             if output_sheet:
                 worksheet = output_sheet.get_worksheet(0)
                 
-                # Primero, obtener columna F para saber hasta dónde hay datos
-                col_f_values = worksheet.col_values(6)  # Columna F (N° de item)
-                
-                # Encontrar última fila con datos en columna F
-                ultima_fila_con_datos = 10
-                for i, valor in enumerate(col_f_values, start=1):
-                    if i > 10 and valor and str(valor).strip():
-                        ultima_fila_con_datos = i
-                
-                # Ahora leer todo el rango hasta esa fila
-                if ultima_fila_con_datos > 10:
-                    rango = f"A11:AA{ultima_fila_con_datos}"
-                    all_values = worksheet.get_values(rango)
-                else:
-                    all_values = []
+                # Leer rango fijo amplio para asegurar que capturamos todas las filas
+                # Leer desde fila 11 hasta fila 1000 (más que suficiente)
+                rango = "A11:AA1000"
+                all_values = worksheet.get_values(rango)
                 
                 trabajos = []
                 ultima_fila_leida = 0
