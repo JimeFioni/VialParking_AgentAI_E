@@ -1,12 +1,8 @@
 <div align="center">
   
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="data/Logo original - Fondo negro - 1057 x 511 px.png">
-    <source media="(prefers-color-scheme: light)" srcset="data/Logo original - 1.600x772 px.png">
-    <img src="data/Logo original - 1.600x772 px.png" alt="VialParking Logo" width="600">
-  </picture>
+  ![VialParking Logo](data/Logo%20original%20-%20Fondo%20negro%20-%201057%20x%20511%20px.png)
   
-  # VialP ECOGAS
+  # VialP 
   ### Sistema Inteligente de Gestión de Cartelería para Gasoductos
   
   [![Python 3.13](https://img.shields.io/badge/Python-3.13-blue.svg)](https://www.python.org/downloads/)
@@ -39,7 +35,7 @@ Sistema completo de gestión de cartelería vial para la infraestructura de gaso
 - **Registro automático** en planilla OUTPUT con enlaces a fotos
 
 ### 🗺️ Geolocalización Inteligente
-- **287+ carteles** georreferenciados en toda la red ECOGAS
+- **287+ carteles** georreferenciados en toda la red
 - **Búsqueda por proximidad** (radio 5km)
 - **Validación GPS** de coordenadas en territorio argentino
 - **Mapa interactivo** con filtros por gasoducto y tipo
@@ -53,7 +49,7 @@ Sistema completo de gestión de cartelería vial para la infraestructura de gaso
 
 ### ☁️ Cloud & Storage
 - **Google Drive** - almacenamiento organizado por item (Fotos XXX-001 al 006)
-- **Google Sheets** - integración bidireccional con planilla ECOGAS
+- **Google Sheets** - integración bidireccional con planilla
 - **Render** - API producción 24/7
 - **Streamlit Cloud** - dashboard público con autenticación opcional
 
@@ -63,7 +59,7 @@ Sistema completo de gestión de cartelería vial para la infraestructura de gaso
 |-----------|------------|---------|
 | **Backend API** | FastAPI | 0.115+ |
 | **Runtime** | Python | 3.13 |
-| **AI/ML** | Google Gemini Pro Vision | 1.5 |
+| **AI/ML** | Google Gemini Pro Vision |
 | **WhatsApp** | Twilio API | - |
 | **Storage** | Google Drive API | v3 |
 | **Database** | Google Sheets API | v4 |

@@ -633,28 +633,46 @@ def get_trabajos_output():
             output_sheet = sheets_service.client.open_by_key(sheets_service.output_sheet_id)
             if output_sheet:
                 worksheet = output_sheet.get_worksheet(0)
-                all_values = worksheet.get_all_values()
+                
+                # Primero, obtener columna F para saber hasta dónde hay datos
+                col_f_values = worksheet.col_values(6)  # Columna F (N° de item)
+                
+                # Encontrar última fila con datos en columna F
+                ultima_fila_con_datos = 10
+                for i, valor in enumerate(col_f_values, start=1):
+                    if i > 10 and valor and str(valor).strip():
+                        ultima_fila_con_datos = i
+                
+                # Ahora leer todo el rango hasta esa fila
+                if ultima_fila_con_datos > 10:
+                    rango = f"A11:AA{ultima_fila_con_datos}"
+                    all_values = worksheet.get_values(rango)
+                else:
+                    all_values = []
                 
                 trabajos = []
                 ultima_fila_leida = 0
                 
-                for i, row in enumerate(all_values[10:], start=11):
-                    if len(row) > 5:
-                        num_item = row[5].strip() if len(row) > 5 else ""
-                        if num_item:
-                            trabajo = {
-                                'fila': i,
-                                'fecha': row[3] if len(row) > 3 else "",
-                                'numero': num_item,
-                                'item': num_item,  # Alias para compatibilidad
-                                'gasoducto': row[6] if len(row) > 6 else "",
-                                'ubicacion': row[8] if len(row) > 8 else "",
-                                'coordenadas': row[9] if len(row) > 9 else "",
-                                'tipo': row[14] if len(row) > 14 else "",
-                                'fotos': row[25] if len(row) > 25 else ""
-                            }
-                            trabajos.append(trabajo)
-                            ultima_fila_leida = i
+                # Iterar sobre las filas leídas
+                for i, row in enumerate(all_values, start=11):
+                    # Extender row si es necesario
+                    row_extended = row + [''] * (27 - len(row)) if len(row) < 27 else row
+                    num_item = str(row_extended[5]).strip() if row_extended[5] else ""
+                    
+                    if num_item:
+                        trabajo = {
+                            'fila': i,
+                            'fecha': str(row_extended[3]) if len(row_extended) > 3 and row_extended[3] else "",
+                            'numero': num_item,
+                            'item': num_item,
+                            'gasoducto': str(row_extended[6]) if len(row_extended) > 6 and row_extended[6] else "",
+                            'ubicacion': str(row_extended[8]) if len(row_extended) > 8 and row_extended[8] else "",
+                            'coordenadas': str(row_extended[9]) if len(row_extended) > 9 and row_extended[9] else "",
+                            'tipo': str(row_extended[14]) if len(row_extended) > 14 and row_extended[14] else "",
+                            'fotos': str(row_extended[25]) if len(row_extended) > 25 and row_extended[25] else ""
+                        }
+                        trabajos.append(trabajo)
+                        ultima_fila_leida = i
                 
                 # Debug info (solo si hay trabajos)
                 if trabajos:
