@@ -525,7 +525,7 @@ def get_items_en_proceso_cached():
             return set()
     return set()
 
-@st.cache_data(ttl=30)  # Cache de 30 segundos
+@st.cache_data(ttl=10, show_spinner="🔄 Actualizando datos...")  # Cache de 10 segundos
 def get_trabajos_output():
     """Lee trabajos completados desde la planilla OUTPUT"""
     if sheets_service:
@@ -536,6 +536,8 @@ def get_trabajos_output():
                 all_values = worksheet.get_all_values()
                 
                 trabajos = []
+                ultima_fila_leida = 0
+                
                 for i, row in enumerate(all_values[10:], start=11):
                     if len(row) > 5:
                         num_item = row[5].strip() if len(row) > 5 else ""
@@ -552,10 +554,18 @@ def get_trabajos_output():
                                 'fotos': row[25] if len(row) > 25 else ""
                             }
                             trabajos.append(trabajo)
+                            ultima_fila_leida = i
+                
+                # Debug info (solo si hay trabajos)
+                if trabajos:
+                    print(f"📊 OUTPUT leído: {len(trabajos)} trabajos. Última fila: {ultima_fila_leida}")
+                    print(f"   Último item: #{trabajos[-1]['numero']} - Fecha: {trabajos[-1]['fecha']}")
                 
                 return trabajos
         except Exception as e:
-            st.error(f"Error al leer OUTPUT: {e}")
+            st.error(f"❌ Error al leer OUTPUT: {e}")
+            import traceback
+            print(f"Error completo: {traceback.format_exc()}")
     return []
 
 
@@ -911,41 +921,7 @@ elif modo == "💬 WhatsApp":
     
     st.success("🟢 **Sistema Activo**: Flujo completo de registro de trabajos con fotos ANTES/DESPUÉS funcionando en tiempo real")
     
-    # Función para leer trabajos de OUTPUT
-    @st.cache_data(ttl=30)  # Cache de 30 segundos
-    def get_trabajos_output():
-        """Lee trabajos completados desde la planilla OUTPUT"""
-        if sheets_service:
-            try:
-                output_sheet = sheets_service._get_output_sheet()
-                if output_sheet:
-                    worksheet = output_sheet.get_worksheet(0)
-                    # Leer todas las filas
-                    all_values = worksheet.get_all_values()
-                    
-                    # Procesar filas con datos (después de fila 10)
-                    trabajos = []
-                    for i, row in enumerate(all_values[10:], start=11):  # Desde fila 11
-                        if len(row) > 5:
-                            # Columna F (índice 5): N° del item
-                            num_item = row[5] if len(row) > 5 else ""
-                            if num_item.strip():
-                                trabajo = {
-                                    'fila': i,
-                                    'fecha': row[3] if len(row) > 3 else "",
-                                    'numero': num_item,
-                                    'gasoducto': row[6] if len(row) > 6 else "",
-                                    'ubicacion': row[8] if len(row) > 8 else "",
-                                    'coordenadas': row[9] if len(row) > 9 else "",
-                                    'tipo': row[14] if len(row) > 14 else "",
-                                    'fotos': row[25] if len(row) > 25 else ""
-                                }
-                                trabajos.append(trabajo)
-                    
-                    return trabajos
-            except Exception as e:
-                st.error(f"Error al leer OUTPUT: {e}")
-        return []
+    # Usar función global get_trabajos_output() definida arriba
     
     tab1, tab2 = st.tabs(["📱 Flujo del Sistema", "💻 Registrar desde PC"])
     
@@ -1804,41 +1780,7 @@ elif modo == "👷 Gestión de Empleados":
 elif modo == "📋 Órdenes de Trabajo":
     st.header("📋 Gestión de Órdenes de Trabajo")
     
-    # Función para leer trabajos de OUTPUT
-    @st.cache_data(ttl=30)  # Cache de 30 segundos
-    def get_trabajos_output():
-        """Lee trabajos completados desde la planilla OUTPUT"""
-        if sheets_service:
-            try:
-                output_sheet = sheets_service._get_output_sheet()
-                if output_sheet:
-                    worksheet = output_sheet.get_worksheet(0)
-                    # Leer todas las filas
-                    all_values = worksheet.get_all_values()
-                    
-                    # Procesar filas con datos (después de fila 10)
-                    trabajos = []
-                    for i, row in enumerate(all_values[10:], start=11):  # Desde fila 11
-                        if len(row) > 5:
-                            # Columna F (índice 5): N° del item
-                            num_item = row[5] if len(row) > 5 else ""
-                            if num_item.strip():
-                                trabajo = {
-                                    'fila': i,
-                                    'fecha': row[3] if len(row) > 3 else "",
-                                    'numero': num_item,
-                                    'gasoducto': row[6] if len(row) > 6 else "",
-                                    'ubicacion': row[8] if len(row) > 8 else "",
-                                    'coordenadas': row[9] if len(row) > 9 else "",
-                                    'tipo': row[14] if len(row) > 14 else "",
-                                    'fotos': row[25] if len(row) > 25 else ""
-                                }
-                                trabajos.append(trabajo)
-                    
-                    return trabajos
-            except Exception as e:
-                st.error(f"Error al leer OUTPUT: {e}")
-        return []
+    # Usar función global get_trabajos_output() definida arriba
     
     if sheets_service:
         tab1, tab2 = st.tabs(["📊 Trabajos Completados", "⏱️ Análisis de Tiempos"])
@@ -1854,6 +1796,13 @@ elif modo == "📋 Órdenes de Trabajo":
                     st.rerun()
             
             trabajos = get_trabajos_output()
+            
+            # Mostrar información de debugging
+            hora_actual = datetime.now().strftime("%H:%M:%S")
+            if trabajos:
+                st.caption(f"🕐 Última actualización: {hora_actual} | 📊 Última fila leída: {trabajos[-1]['fila']} | Item: #{trabajos[-1]['numero']}")
+            else:
+                st.caption(f"🕐 Última actualización: {hora_actual} | ⚠️ No se encontraron trabajos")
             
             if trabajos:
                 # Métricas
