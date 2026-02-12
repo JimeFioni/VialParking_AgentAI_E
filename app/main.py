@@ -114,15 +114,164 @@ async def webhook_whatsapp(
         whatsapp_number = From
         operario = Body.split()[0] if Body else "Operario"
         
-        # FLUJO PRINCIPAL: Detectar número de ítem en el mensaje
+        # 📋 LOG: Registrar mensaje recibido
+        sheets_service.registrar_log_whatsapp(
+            numero_telefono=whatsapp_number,
+            tipo_mensaje="recibido",
+            contenido=Body if Body else "[Sin texto]",
+            tiene_media=bool(MediaUrl0),
+            media_url=MediaUrl0 if MediaUrl0 else "",
+            item_relacionado="",
+            estado_flujo=conversation_states.get(whatsapp_number, {}).get('estado', 'inicial'),
+            respuesta_bot=""
+        )
+        
+        # FLUJO PRINCIPAL: Detectar número(s) de ítem en el mensaje
         import re
         if Body and re.search(r'\d+', Body):
-            print(f"🔍 Detectado número de ítem en mensaje: {Body}")
+            print(f"🔍 Detectado número(s) de ítem en mensaje: {Body}")
             
-            # Extraer el número
-            match = re.search(r'\d+', Body)
-            if match:
-                item_number = match.group()
+            # Extraer TODOS los números del mensaje
+            numeros = re.findall(r'\d+', Body)
+            print(f"📊 Números encontrados: {numeros}")
+            
+            if numeros:
+                # Modo múltiple: si hay más de un número
+                if len(numeros) > 1:
+                    print(f"🔢 MODO MÚLTIPLE: {len(numeros)} items detectados")
+                    
+                    # Buscar información de todos los items
+                    items_validos = []
+                    items_invalidos = []
+                    
+                    for num in numeros:
+                        cartel = sheets_service.buscar_cartel_por_item(num)
+                        if cartel:
+                            items_validos.append({
+                                'numero': cartel.get('numero', num),
+                                'info': cartel
+                            })
+                        else:
+                            items_invalidos.append(num)
+                    
+                    if not items_validos:
+                        whatsapp_service.enviar_mensaje(
+                            whatsapp_number,
+                            f"❌ No se encontró ningún ítem válido en la planilla."
+                        )
+                        return "OK"
+                    
+                    # Avisar sobre items inválidos si los hay
+                    if items_invalidos:
+                        whatsapp_service.enviar_mensaje(
+                            whatsapp_number,
+                            f"⚠️ Items no encontrados: {', '.join(items_invalidos)}"
+                        )
+                    
+                    # Enviar resumen de items a trabajar
+                    resumen = f"✅ *{len(items_validos)} ITEMS PARA TRABAJAR*\n\n"
+                    for item in items_validos:
+                        info = item['info']
+                        tipo_info = info.get('tipo_completo', info.get('tipo_raw', '?'))
+                        resumen += f"📋 #{item['numero']} - {info.get('ubicacion', 'Sin ubicación')}\n"
+                        resumen += f"   🔴 Tipo: {tipo_info}\n\n"
+                    
+                    resumen += f"📸 Enviaré la información de cada uno y luego solicitaré las fotos ANTES de todos.\n\n"
+                    resumen += f"Una vez que tengas los ANTES, envía *'listo [numero]'* al terminar cada trabajo."
+                    
+                    whatsapp_service.enviar_mensaje(whatsapp_number, resumen)
+                    
+                    # Enviar información detallada de cada item
+                    for item in items_validos:
+                        numero = item['numero']
+                        cartel = item['info']
+                        tipo_info = cartel.get('tipo_completo', cartel.get('tipo_raw', 'No especificado'))
+                        
+                        respuesta = f"""
+📋 *CARTEL #{numero}*
+
+🛣️ Gasoducto/Ramal: {cartel.get('gasoducto_ramal', 'No especificado')}
+📍 Ubicación: {cartel.get('ubicacion', 'No especificada')}
+📌 Coordenadas: {cartel.get('coordenadas', 'No disponibles')}
+
+⚠️ *━━━━━━━━━━━━━━━━━━━*
+🔴 *TIPO DE CARTEL:*
+*{tipo_info}*
+⚠️ *━━━━━━━━━━━━━━━━━━━*
+
+📏 Tamaño: {cartel.get('tamanio', 'No especificado')}
+"""
+                        
+                        if cartel.get('tapada_caneria') and cartel.get('tapada_caneria') not in ['-', '']:
+                            respuesta += f"🔧 Tapada cañería: {cartel.get('tapada_caneria')}\n"
+                        
+                        respuesta += f"""📝 Observaciones: {cartel.get('observaciones', 'Sin observaciones')}
+📅 Estado: {cartel.get('estado', 'No especificado')}
+"""
+                        
+                        if cartel.get('tipo_trabajo'):
+                            respuesta += f"\n🔨 *Tipo de trabajo:*\n{cartel.get('tipo_trabajo')}\n"
+                            if cartel.get('detalles_instalacion'):
+                                respuesta += "\n📦 *Detalles de instalación:*\n"
+                                for detalle in cartel.get('detalles_instalacion', []):
+                                    respuesta += f"  • {detalle}\n"
+                        
+                        respuesta += f"\n🌍 Zona: {cartel.get('zona', 'No especificada')}"
+                        
+                        whatsapp_service.enviar_mensaje(whatsapp_number, respuesta.strip())
+                        time.sleep(1)
+                        
+                        # Enviar imágenes si están disponibles
+                        imagenes = sheets_service.obtener_imagenes_cartel(numero)
+                        if imagenes:
+                            for idx, imagen in enumerate(imagenes, 1):
+                                caption = f"🖼️ Item #{numero} - Imagen {idx}/{len(imagenes)}"
+                                success = whatsapp_service.enviar_imagen(
+                                    whatsapp_number,
+                                    imagen['url'],
+                                    caption
+                                )
+                                if not success:
+                                    whatsapp_service.enviar_mensaje(
+                                        whatsapp_number,
+                                        f"{caption}\n{imagen['web_view']}"
+                                    )
+                                time.sleep(1)
+                    
+                    # Inicializar estado múltiple
+                    primer_item = items_validos[0]['numero']
+                    items_dict = {}
+                    for item in items_validos:
+                        items_dict[str(item['numero'])] = {
+                            'estado': 'pendiente_antes',
+                            'cartel_info': item['info'],
+                            'imagenes_antes': [],
+                            'urls_imagenes_antes': []
+                        }
+                    
+                    conversation_states[whatsapp_number] = {
+                        'modo': 'multiple',
+                        'items_activos': items_dict,
+                        'item_actual_antes': primer_item,
+                        'item_actual_despues': None,
+                        'imagenes_temp': []
+                    }
+                    
+                    # Pedir fotos ANTES del primer item
+                    whatsapp_service.enviar_mensaje(
+                        whatsapp_number,
+                        f"\n📸 *FOTOS ANTES - ITEM #{primer_item}*\n\n"
+                        f"Envía 3 fotos del estado ANTES del cartel #{primer_item}.\n\n"
+                        f"📷📷📷 Envía las 3 imágenes ahora."
+                    )
+                    
+                    # Actualizar estado del primer item
+                    conversation_states[whatsapp_number]['items_activos'][str(primer_item)]['estado'] = 'recibiendo_antes'
+                    
+                    return "OK"
+                    
+                # Modo simple: un solo número
+                item_number = numeros[0]
                 print(f"📊 Buscando ítem: {item_number}")
                 
                 # Buscar información en la planilla
@@ -147,7 +296,12 @@ async def webhook_whatsapp(
 🛣️ Gasoducto/Ramal: {cartel.get('gasoducto_ramal', 'No especificado')}
 📍 Ubicación: {cartel.get('ubicacion', 'No especificada')}
 📌 Coordenadas: {cartel.get('coordenadas', 'No disponibles')}
-🏷️ Tipo: {tipo_info}
+
+⚠️ *━━━━━━━━━━━━━━━━━━━*
+🔴 *TIPO DE CARTEL:*
+*{tipo_info}*
+⚠️ *━━━━━━━━━━━━━━━━━━━*
+
 📏 Tamaño: {cartel.get('tamanio', 'No especificado')}
 """
                 
@@ -222,11 +376,251 @@ async def webhook_whatsapp(
                     'cartel_info': cartel
                 }
                 
+                # 📋 LOG: Registrar solicitud exitosa de item
+                sheets_service.registrar_log_whatsapp(
+                    numero_telefono=whatsapp_number,
+                    tipo_mensaje="enviado",
+                    contenido=f"Item {numero} solicitado - Información enviada",
+                    tiene_media=False,
+                    media_url="",
+                    item_relacionado=str(numero),
+                    estado_flujo="esperando_imagenes_antes",
+                    respuesta_bot="Solicitando 3 fotos ANTES del trabajo"
+                )
+                
                 return "OK"
         
         # MANEJO DE IMÁGENES SEGÚN ESTADO DE CONVERSACIÓN
         estado_actual = conversation_states.get(whatsapp_number, {})
         
+        # ===== MODO MÚLTIPLE =====
+        if estado_actual.get('modo') == 'multiple':
+            if MediaUrl0:
+                items_activos = estado_actual.get('items_activos', {})
+                item_actual_antes = estado_actual.get('item_actual_antes')
+                item_actual_despues = estado_actual.get('item_actual_despues')
+                
+                # Descarga la imagen
+                auth = (os.getenv("TWILIO_ACCOUNT_SID"), os.getenv("TWILIO_AUTH_TOKEN"))
+                image_data = await whatsapp_service.descargar_imagen(MediaUrl0, auth)
+                
+                if not image_data:
+                    whatsapp_service.enviar_mensaje(whatsapp_number, "❌ Error al descargar la imagen. Intenta nuevamente.")
+                    return "OK"
+                
+                # Recibiendo fotos ANTES
+                if item_actual_antes and items_activos.get(str(item_actual_antes), {}).get('estado') == 'recibiendo_antes':
+                    estado_actual['imagenes_temp'].append(image_data)
+                    num_recibidas = len(estado_actual['imagenes_temp'])
+                    
+                    if num_recibidas < 3:
+                        whatsapp_service.enviar_mensaje(
+                            whatsapp_number,
+                            f"✅ Imagen {num_recibidas}/3 recibida para item #{item_actual_antes}.\n\n📸 Envía la imagen {num_recibidas + 1} de 3."
+                        )
+                    else:
+                        # 3 fotos ANTES completadas
+                        whatsapp_service.enviar_mensaje(
+                            whatsapp_number,
+                            f"✅ 3 imágenes recibidas.\n\n⏳ Guardando en Drive..."
+                        )
+                        
+                        # Subir a Drive
+                        urls_guardadas = []
+                        item_formateado = str(item_actual_antes).zfill(3)
+                        for idx, img_data in enumerate(estado_actual['imagenes_temp'], 1):
+                            filename = f"{item_formateado}-{str(idx).zfill(3)}.jpg"
+                            url = sheets_service.subir_imagen_antes_despues(
+                                img_data, 
+                                filename, 
+                                item_actual_antes, 
+                                'antes'
+                            )
+                            if url:
+                                urls_guardadas.append(url)
+                        
+                        # Actualizar estado del item
+                        items_activos[str(item_actual_antes)]['estado'] = 'en_espera'
+                        items_activos[str(item_actual_antes)]['urls_imagenes_antes'] = urls_guardadas
+                        items_activos[str(item_actual_antes)]['imagenes_antes'] = estado_actual['imagenes_temp'].copy()
+                        estado_actual['imagenes_temp'] = []
+                        
+                        # Buscar siguiente item pendiente
+                        siguiente_item = None
+                        for num_item, info in items_activos.items():
+                            if info['estado'] == 'pendiente_antes':
+                                siguiente_item = num_item
+                                break
+                        
+                        if siguiente_item:
+                            # Hay más items para pedir ANTES
+                            estado_actual['item_actual_antes'] = siguiente_item
+                            items_activos[siguiente_item]['estado'] = 'recibiendo_antes'
+                            
+                            whatsapp_service.enviar_mensaje(
+                                whatsapp_number,
+                                f"✅ *IMÁGENES GUARDADAS - Item #{item_actual_antes}*\n\n"
+                                f"📸 *FOTOS ANTES - ITEM #{siguiente_item}*\n\n"
+                                f"Envía 3 fotos del estado ANTES del cartel #{siguiente_item}.\n\n"
+                                f"📷📷📷 Envía las 3 imágenes ahora."
+                            )
+                        else:
+                            # Todos los ANTES completados
+                            estado_actual['item_actual_antes'] = None
+                            
+                            items_en_espera = [num for num, info in items_activos.items() if info['estado'] == 'en_espera']
+                            
+                            whatsapp_service.enviar_mensaje(
+                                whatsapp_number,
+                                f"✅ *TODOS LOS ANTES COMPLETADOS*\n\n"
+                                f"📋 Items listos para trabajar: {', '.join(items_en_espera)}\n\n"
+                                f"🔧 Procede con los trabajos.\n\n"
+                                f"Cuando termines un trabajo, envía:\n"
+                                f"*'listo [numero]'* o *'finalizado [numero]'*\n\n"
+                                f"Ejemplo: 'listo {items_en_espera[0]}'"
+                            )
+                        
+                        conversation_states[whatsapp_number] = estado_actual
+                    
+                    return "OK"
+                
+                # Recibiendo fotos DESPUÉS
+                if item_actual_despues and items_activos.get(str(item_actual_despues), {}).get('estado') == 'recibiendo_despues':
+                    estado_actual['imagenes_temp'].append(image_data)
+                    num_recibidas = len(estado_actual['imagenes_temp'])
+                    
+                    if num_recibidas < 3:
+                        whatsapp_service.enviar_mensaje(
+                            whatsapp_number,
+                            f"✅ Imagen {num_recibidas}/3 recibida para item #{item_actual_despues}.\n\n📸 Envía la imagen {num_recibidas + 1} de 3."
+                        )
+                    else:
+                        # 3 fotos DESPUÉS completadas
+                        whatsapp_service.enviar_mensaje(
+                            whatsapp_number,
+                            f"✅ 3 imágenes recibidas.\n\n⏳ Guardando en Drive..."
+                        )
+                        
+                        # Subir a Drive
+                        urls_guardadas = []
+                        item_formateado = str(item_actual_despues).zfill(3)
+                        for idx, img_data in enumerate(estado_actual['imagenes_temp'], 1):
+                            filename = f"{item_formateado}-{str(idx + 3).zfill(3)}.jpg"
+                            url = sheets_service.subir_imagen_antes_despues(
+                                img_data, 
+                                filename, 
+                                item_actual_despues, 
+                                'despues'
+                            )
+                            if url:
+                                urls_guardadas.append(url)
+                        
+                        # Registrar en OUTPUT
+                        cartel_info = items_activos[str(item_actual_despues)].get('cartel_info', {})
+                        registro_exitoso = sheets_service.registrar_trabajo_ecogas({
+                            'numero_item': item_actual_despues,
+                            'cartel_info': cartel_info
+                        })
+                        
+                        # Actualizar estado del item
+                        items_activos[str(item_actual_despues)]['estado'] = 'completado'
+                        items_activos[str(item_actual_despues)]['urls_imagenes_despues'] = urls_guardadas
+                        estado_actual['imagenes_temp'] = []
+                        estado_actual['item_actual_despues'] = None
+                        
+                        # Contar items pendientes
+                        items_pendientes = [num for num, info in items_activos.items() if info['estado'] == 'en_espera']
+                        items_completados = [num for num, info in items_activos.items() if info['estado'] == 'completado']
+                        
+                        mensaje_final = (
+                            f"✅ *TRABAJO COMPLETADO - Item #{item_actual_despues}*\n\n"
+                            f"📸 Imágenes DESPUÉS guardadas en Drive\n"
+                        )
+                        
+                        if registro_exitoso:
+                            mensaje_final += f"📊 Registrado en planilla OUTPUT\n\n"
+                        else:
+                            mensaje_final += f"⚠️ Error al registrar en OUTPUT\n\n"
+                        
+                        mensaje_final += f"📊 *ESTADO GENERAL:*\n"
+                        mensaje_final += f"   ✅ Completados: {len(items_completados)}\n"
+                        mensaje_final += f"   ⏳ Pendientes: {len(items_pendientes)}\n\n"
+                        
+                        if items_pendientes:
+                            mensaje_final += f"💡 Items pendientes: {', '.join(items_pendientes)}\n"
+                            mensaje_final += f"Envía 'listo [numero]' al terminar el siguiente."
+                        else:
+                            mensaje_final += f"🎉 *¡TODOS LOS TRABAJOS COMPLETADOS!*\n\nExcelente trabajo."
+                            # Limpiar estado
+                            del conversation_states[whatsapp_number]
+                        
+                        whatsapp_service.enviar_mensaje(whatsapp_number, mensaje_final)
+                        
+                        # LOG
+                        sheets_service.registrar_log_whatsapp(
+                            numero_telefono=whatsapp_number,
+                            tipo_mensaje="enviado",
+                            contenido=f"✅ Trabajo completado - Item #{item_actual_despues}",
+                            tiene_media=True,
+                            media_url=f"{len(urls_guardadas)} imágenes DESPUÉS",
+                            item_relacionado=str(item_actual_despues),
+                            estado_flujo="completado" if not items_pendientes else "multiple_en_progreso",
+                            respuesta_bot=f"OUTPUT: {'SÍ' if registro_exitoso else 'NO'}"
+                        )
+                        
+                        if whatsapp_number in conversation_states:
+                            conversation_states[whatsapp_number] = estado_actual
+                    
+                    return "OK"
+            
+            # Detectar comando "listo [numero]" o "finalizado [numero]"
+            if Body:
+                body_lower = Body.lower().strip()
+                numeros_en_mensaje = re.findall(r'\d+', Body)
+                
+                if numeros_en_mensaje and any(word in body_lower for word in ['listo', 'finalizado', 'terminado', 'complete', 'completado']):
+                    numero_solicitado = numeros_en_mensaje[0]
+                    items_activos = estado_actual.get('items_activos', {})
+                    
+                    if str(numero_solicitado) in items_activos:
+                        item_info = items_activos[str(numero_solicitado)]
+                        
+                        if item_info['estado'] == 'en_espera':
+                            # Item válido, pedir fotos DESPUÉS
+                            estado_actual['item_actual_despues'] = numero_solicitado
+                            items_activos[str(numero_solicitado)]['estado'] = 'recibiendo_despues'
+                            conversation_states[whatsapp_number] = estado_actual
+                            
+                            whatsapp_service.enviar_mensaje(
+                                whatsapp_number,
+                                f"📸 *FOTOS DESPUÉS - ITEM #{numero_solicitado}*\n\n"
+                                f"Envía 3 fotos del estado DESPUÉS del cartel #{numero_solicitado}.\n\n"
+                                f"📷📷📷 Envía las 3 imágenes ahora."
+                            )
+                            return "OK"
+                        elif item_info['estado'] == 'completado':
+                            whatsapp_service.enviar_mensaje(
+                                whatsapp_number,
+                                f"ℹ️ El item #{numero_solicitado} ya está completado."
+                            )
+                            return "OK"
+                        else:
+                            whatsapp_service.enviar_mensaje(
+                                whatsapp_number,
+                                f"⚠️ El item #{numero_solicitado} aún no tiene fotos ANTES."
+                            )
+                            return "OK"
+                    else:
+                        whatsapp_service.enviar_mensaje(
+                            whatsapp_number,
+                            f"❌ El item #{numero_solicitado} no está en tu lista actual.\n\n"
+                            f"Items activos: {', '.join(items_activos.keys())}"
+                        )
+                        return "OK"
+            
+            return "OK"
+        
+        # ===== MODO SIMPLE (LEGACY) =====
         if MediaUrl0 and estado_actual.get('estado') == 'esperando_imagenes_antes':
             # Usuario está enviando imágenes ANTES del trabajo
             print(f"📸 Recibiendo imagen ANTES del trabajo de {whatsapp_number}")
@@ -283,6 +677,18 @@ async def webhook_whatsapp(
                     f"Las 3 imágenes del estado ANTES se han guardado correctamente en Drive.\n\n"
                     f"🔧 Ahora puedes proceder con el trabajo en el cartel #{numero_item}.\n\n"
                     f"Cuando termines, envía el mensaje *'listo'* o *'finalizado'* para registrar las imágenes DESPUÉS del trabajo."
+                )
+                
+                # 📋 LOG: Registrar imágenes ANTES guardadas
+                sheets_service.registrar_log_whatsapp(
+                    numero_telefono=whatsapp_number,
+                    tipo_mensaje="enviado",
+                    contenido=f"3 imágenes ANTES guardadas para item #{numero_item}",
+                    tiene_media=True,
+                    media_url=f"{len(urls_guardadas)} imágenes en Drive",
+                    item_relacionado=str(numero_item),
+                    estado_flujo="en_trabajo",
+                    respuesta_bot="Esperando finalización del trabajo"
                 )
             
             return "OK"
@@ -362,6 +768,18 @@ async def webhook_whatsapp(
                 
                 whatsapp_service.enviar_mensaje(whatsapp_number, mensaje_final)
                 
+                # 📋 LOG: Registrar trabajo completado
+                sheets_service.registrar_log_whatsapp(
+                    numero_telefono=whatsapp_number,
+                    tipo_mensaje="enviado",
+                    contenido=f"✅ Trabajo completado - Item #{numero_item}",
+                    tiene_media=True,
+                    media_url=f"Total: {len(urls_guardadas)} imágenes DESPUÉS guardadas",
+                    item_relacionado=str(numero_item),
+                    estado_flujo="completado",
+                    respuesta_bot=f"Registrado en OUTPUT: {'SÍ' if registro_exitoso else 'NO'}"
+                )
+                
                 # Limpiar estado
                 del conversation_states[whatsapp_number]
             
@@ -388,10 +806,14 @@ async def webhook_whatsapp(
         if Body and not re.search(r'\d+', Body):
             whatsapp_service.enviar_mensaje(
                 whatsapp_number,
-                "👋 ¡Hola! Para trabajar en un cartel:\n\n"
-                "📝 Envía el *número de item* del cartel\n"
-                "Ejemplo: 'item 5' o solo '5'\n\n"
-                "Te mostraré la información del cartel y te pediré las fotos ANTES y DESPUÉS del trabajo."
+                "👋 ¡Hola! Para trabajar en carteles:\n\n"
+                "📝 *UN CARTEL:* Envía el número\n"
+                "   Ejemplo: '190' o 'item 190'\n\n"
+                "📝 *MÚLTIPLES CARTELES:* Envía varios números\n"
+                "   Ejemplo: '277, 278, 279, 290'\n\n"
+                "Te mostraré la información de cada cartel, pediré las fotos ANTES de todos.\n\n"
+                "Cuando termines un trabajo, envía:\n"
+                "*'listo [numero]'* o *'finalizado [numero]'*"
             )
         return "OK"
         

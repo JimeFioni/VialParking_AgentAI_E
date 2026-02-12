@@ -46,6 +46,7 @@ class GoogleSheetsService:
         self.stock_folder_id = os.getenv("STOCK_DRIVE_FOLDER_ID")
         self.ecogas_sheet_id = os.getenv("ECOGAS_SHEET_ID")  # Planilla INPUT de ECOGAS
         self.output_sheet_id = os.getenv("OUTPUT_SHEET_ID")  # Planilla OUTPUT para registrar trabajos
+        self.whatsapp_log_sheet_id = os.getenv("WHATSAPP_LOG_SHEET_ID", self.output_sheet_id)  # LOG de WhatsApp
         self.imagenes_carteles_folder_id = os.getenv("IMAGENES_CARTELES_FOLDER_ID")
         self.output_imagenes_folder_id = os.getenv("OUTPUT_IMAGENES_FOLDER_ID")
         
@@ -53,6 +54,7 @@ class GoogleSheetsService:
         self._db_sheet = None
         self._ecogas_sheet = None
         self._output_sheet = None
+        self._whatsapp_log_sheet = None
     
     def _init_drive_service_oauth(self):
         """Inicializa servicio de Drive con OAuth (evita límites de cuota)."""
@@ -983,7 +985,7 @@ class GoogleSheetsService:
             if tipo_trabajo:
                 print(f"   ✓ Tipo de trabajo: {tipo_trabajo}")
             
-            if enlace_fotos_formula:
+            if enlace_antes_formula or enlace_despues_formula:
                 print(f"   ✓ Enlaces fotos: Fotos {str(numero_item).zfill(3)}-001 al 003 y -004 al 006")
                 
             print(f"   ✓ Observaciones: Instalación EJECUTADA.-")
@@ -1522,4 +1524,100 @@ class GoogleSheetsService:
             import traceback
             traceback.print_exc()
             return []
-
+    
+    # ===== LOG DE WHATSAPP =====
+    def _get_whatsapp_log_sheet(self):
+        """Obtiene la hoja LOG de WhatsApp con cache."""
+        if self._whatsapp_log_sheet is None and self.whatsapp_log_sheet_id:
+            self._whatsapp_log_sheet = self.client.open_by_key(self.whatsapp_log_sheet_id)
+        return self._whatsapp_log_sheet
+    
+    def registrar_log_whatsapp(
+        self,
+        numero_telefono: str,
+        tipo_mensaje: str,
+        contenido: str,
+        tiene_media: bool = False,
+        media_url: str = "",
+        item_relacionado: str = "",
+        estado_flujo: str = "",
+        respuesta_bot: str = "" 
+    ) -> bool:
+        """
+        Registra cada interacción de WhatsApp en una hoja LOG para trazabilidad.
+        
+        Args:
+            numero_telefono: Número de WhatsApp del usuario
+            tipo_mensaje: 'recibido' o 'enviado'
+            contenido: Texto del mensaje
+            tiene_media: Si el mensaje incluye imagen/archivo
+            media_url: URL del media si existe
+            item_relacionado: Número de item si aplica
+            estado_flujo: Estado actual (esperando_antes, en_trabajo, etc.)
+            respuesta_bot: Respuesta automática del bot
+            
+        Returns:
+            True si se registró correctamente
+        """
+        try:
+            log_sheet = self._get_whatsapp_log_sheet()
+            if not log_sheet:
+                print("No se configuró hoja LOG de WhatsApp")
+                return False
+            
+            # Buscar o crear pestaña LOG
+            try:
+                worksheet = log_sheet.worksheet("LOG_WhatsApp")
+            except:
+                # Crear pestaña si no existe
+                worksheet = log_sheet.add_worksheet(
+                    title="LOG_WhatsApp",
+                    rows=1000,
+                    cols=10
+                )
+                # Agregar encabezados
+                headers = [
+                    "Timestamp",
+                    "Fecha",
+                    "Hora",
+                    "Número",
+                    "Tipo",
+                    "Mensaje",
+                    "Tiene Media",
+                    "URL Media",
+                    "Item",
+                    "Estado Flujo",
+                    "Respuesta Bot"
+                ]
+                worksheet.append_row(headers)
+            
+            # Preparar datos
+            now = datetime.now()
+            timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
+            fecha = now.strftime("%d/%m/%Y")
+            hora = now.strftime("%H:%M:%S")
+            
+            fila = [
+                timestamp,
+                fecha,
+                hora,
+                numero_telefono,
+                tipo_mensaje,
+                contenido[:500] if contenido else "",  # Limitar a 500 caracteres
+                "Sí" if tiene_media else "No",
+                media_url[:300] if media_url else "",  # Limitar URL
+                str(item_relacionado) if item_relacionado else "",
+                estado_flujo,
+                respuesta_bot[:500] if respuesta_bot else ""  # Limitar respuesta
+            ]
+            
+            # Agregar fila
+            worksheet.append_row(fila)
+            print(f"📋 Log WhatsApp registrado: {numero_telefono} - {tipo_mensaje}")
+            return True
+            
+        except Exception as e:
+            print(f"Error al registrar log WhatsApp: {e}")
+            import traceback
+            traceback.print_exc()
+            return False

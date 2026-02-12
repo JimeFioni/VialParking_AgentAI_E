@@ -8,11 +8,83 @@ import os
 from pathlib import Path
 import requests
 import json
+import hashlib
 
 # Agregar el directorio padre al path para importar los servicios
 sys.path.append(str(Path(__file__).parent.parent))
 
 from services.google_sheets import GoogleSheetsService
+
+# ==================== SISTEMA DE AUTENTICACIÓN ====================
+
+def hash_password(password: str) -> str:
+    """Hash de contraseña con SHA256"""
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def check_authentication():
+    """Verifica si el usuario está autenticado"""
+    if 'authenticated' not in st.session_state:
+        st.session_state.authenticated = False
+        st.session_state.user_role = 'viewer'  # viewer o admin
+        st.session_state.username = None
+
+def get_users():
+    """Obtiene usuarios desde secrets o configuración por defecto"""
+    try:
+        # Intentar obtener desde st.secrets (Streamlit Cloud)
+        return st.secrets.get("users", {})
+    except:
+        # Usuarios por defecto (cambiar contraseñas en producción)
+        return {
+            "admin": {
+                "password": hash_password("admin123"),
+                "role": "admin"
+            },
+            "viewer": {
+                "password": hash_password("viewer123"),
+                "role": "viewer"
+            }
+        }
+
+def login_form():
+    """Formulario de login en sidebar"""
+    with st.sidebar.expander("🔐 Login (Opcional - Solo para editar)", expanded=not st.session_state.authenticated):
+        if st.session_state.authenticated:
+            st.success(f"✅ Conectado como: {st.session_state.username}")
+            st.caption(f"Rol: {st.session_state.user_role}")
+            if st.button("🚪 Cerrar sesión", width="stretch"):
+                st.session_state.authenticated = False
+                st.session_state.user_role = 'viewer'
+                st.session_state.username = None
+                st.rerun()
+        else:
+            st.info("📊 Modo público: Solo visualización")
+            username = st.text_input("Usuario", key="login_username")
+            password = st.text_input("Contraseña", type="password", key="login_password")
+            
+            if st.button("Iniciar sesión", width="stretch"):
+                users = get_users()
+                if username in users:
+                    if users[username]["password"] == hash_password(password):
+                        st.session_state.authenticated = True
+                        st.session_state.user_role = users[username]["role"]
+                        st.session_state.username = username
+                        st.success(f"✅ Bienvenido {username}!")
+                        st.rerun()
+                    else:
+                        st.error("❌ Contraseña incorrecta")
+                else:
+                    st.error("❌ Usuario no encontrado")
+
+def is_admin():
+    """Verifica si el usuario actual es admin"""
+    return st.session_state.get('authenticated', False) and st.session_state.get('user_role') == 'admin'
+
+def can_edit():
+    """Verifica si el usuario puede editar (cualquier usuario autenticado)"""
+    return st.session_state.get('authenticated', False)
+
+# ==================== FIN AUTENTICACIÓN ====================
 
 # Configuración de la página
 st.set_page_config(
@@ -21,6 +93,9 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# Inicializar autenticación
+check_authentication()
 
 # Logo
 try:
@@ -34,6 +109,11 @@ try:
             st.sidebar.image(logo_path)
 except Exception as e:
     st.sidebar.error(f"Logo no encontrado: {e}")
+
+# Sistema de autenticación (login opcional para editar)
+login_form()
+
+st.sidebar.markdown("---")
 
 # CSS personalizado para producción
 st.markdown("""
@@ -296,12 +376,12 @@ with st.sidebar:
     
     col_btn1, col_btn2 = st.columns(2)
     with col_btn1:
-        if st.button("🔄 Actualizar", use_container_width=True):
+        if st.button("🔄 Actualizar", width="stretch"):
             st.cache_data.clear()
             st.rerun()
     
     with col_btn2:
-        if st.button("🧹 Limpiar", use_container_width=True):
+        if st.button("🧹 Limpiar", width="stretch"):
             st.cache_resource.clear()
             st.cache_data.clear()
             st.rerun()
@@ -519,7 +599,7 @@ if modo == "📊 Dashboard Principal":
             ramales = set([' '.join(c.get('gasoducto_ramal', '').split()) for c in carteles if c.get('gasoducto_ramal')])
             st.markdown("""
             <div class='metric-card'>
-                <h3>�</h3>
+                <h3>🔧</h3>
                 <h2>{}</h2>
                 <p>Ramales Activos</p>
             </div>
@@ -646,7 +726,7 @@ if modo == "📊 Dashboard Principal":
                     for k, v in sorted(tipos_count.items(), key=lambda x: x[1], reverse=True)
                 ])
                 
-                st.dataframe(df_tipos, hide_index=True, use_container_width=True)
+                st.dataframe(df_tipos, hide_index=True, width="stretch")
             else:
                 st.info("No hay datos para mostrar")
         except Exception as e:
@@ -669,7 +749,7 @@ if modo == "📊 Dashboard Principal":
                     for k, v in sorted(zonas_count.items(), key=lambda x: x[1], reverse=True)[:10]
                 ])
                 
-                st.dataframe(df_zonas, hide_index=True, use_container_width=True)
+                st.dataframe(df_zonas, hide_index=True, width="stretch")
             else:
                 st.info("No hay datos para mostrar")
         except Exception as e:
@@ -699,7 +779,7 @@ if modo == "📊 Dashboard Principal":
         try:
             carteles_temp = get_carteles_cached()
             ramales = sorted(list(set([' '.join(c.get('gasoducto_ramal', '').split()) for c in carteles_temp if c.get('gasoducto_ramal')])))
-            ramal_filtro = st.selectbox("Filtrar por ramal", ["Todos"] + ramales)
+            ramal_filtro = st.selectbox("Filtrar por ramal", ["Todos"] + ramales, key="ramal_filtro_mapa")
         except:
             ramal_filtro = "Todos"
     
@@ -871,98 +951,278 @@ elif modo == "💬 WhatsApp":
     
     # Tab 1: Flujo del sistema
     with tab1:
-        st.subheader("💬 Flujo del Sistema - Ejemplo Interactivo")
+        st.subheader("💬 Flujo del Sistema - Dos Modos Disponibles")
         st.info("🤖 **Este es el flujo real funcionando con Twilio WhatsApp**")
         
-        # Ejemplo de conversación interactiva
-        st.markdown("### 📱 Simulación de Conversación")
+        # Selector de modo
+        modo_ejemplo = st.radio(
+            "Selecciona el modo para ver el ejemplo:",
+            ["📋 Modo Simple (1 cartel)", "📋 Modo Múltiple (varios carteles)"],
+            horizontal=True
+        )
         
-        # Mensaje 1: Usuario envía número
-        st.markdown("""
-        <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                    color: white; padding: 15px; border-radius: 15px 15px 15px 0; 
-                    margin: 10px 0; max-width: 70%; margin-left: auto;'>
-            <strong>👷 Operario:</strong><br>
-            65
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown("---")
         
-        # Respuesta Bot con información
-        st.markdown("""
-        <div style='background: #f1f3f5; color: #212529; padding: 15px; 
-                    border-radius: 15px 15px 15px 0; margin: 10px 0; 
-                    max-width: 80%; border-left: 4px solid #667eea;'>
-            <strong>🤖 Sistema:</strong><br><br>
-            ✅ <strong>Item encontrado: 65</strong><br><br>
-            📍 <strong>Ubicación:</strong> Ruta 40 km 2450<br>
-            🚰 <strong>Gasoducto/Ramal:</strong> R-1006<br>
-            🏷️ <strong>Tipo:</strong> Cartel preventivo - columna<br>
-            📊 <strong>Estado:</strong> Pendiente<br><br>
-            📸 Por favor, envíe <strong>3 fotos ANTES</strong> del trabajo (una por una)
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Usuario envía fotos ANTES
-        for i in range(1, 4):
-            st.markdown(f"""
+        if modo_ejemplo == "📋 Modo Simple (1 cartel)":
+            st.markdown("### 📱 Modo Simple - Un Cartel")
+            st.caption("Ideal para trabajos individuales o urgentes")
+            
+            # Mensaje 1: Usuario envía número
+            st.markdown("""
             <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                        color: white; padding: 12px; border-radius: 15px 15px 15px 0; 
-                        margin: 8px 0; max-width: 50%; margin-left: auto; text-align: center;'>
-                📸 [Foto ANTES {i}]
+                        color: white; padding: 15px; border-radius: 15px 15px 15px 0; 
+                        margin: 10px 0; max-width: 70%; margin-left: auto;'>
+                <strong>👷 Operario:</strong><br>
+                190
             </div>
             """, unsafe_allow_html=True)
-        
-        # Bot confirma ANTES
-        st.markdown("""
-        <div style='background: #f1f3f5; color: #212529; padding: 15px; 
-                    border-radius: 15px 15px 15px 0; margin: 10px 0; 
-                    max-width: 80%; border-left: 4px solid #51cf66;'>
-            <strong>🤖 Sistema:</strong><br><br>
-            ✅ <strong>3 fotos ANTES recibidas y guardadas</strong><br><br>
-            📸 Ahora envíe <strong>3 fotos DESPUÉS</strong> del trabajo (una por una)
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Usuario envía fotos DESPUÉS
-        for i in range(1, 4):
-            st.markdown(f"""
-            <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                        color: white; padding: 12px; border-radius: 15px 15px 15px 0; 
-                        margin: 8px 0; max-width: 50%; margin-left: auto; text-align: center;'>
-                📸 [Foto DESPUÉS {i}]
+            
+            # Respuesta Bot con información
+            st.markdown("""
+            <div style='background: #f1f3f5; color: #212529; padding: 15px; 
+                        border-radius: 15px 15px 15px 0; margin: 10px 0; 
+                        max-width: 80%; border-left: 4px solid #667eea;'>
+                <strong>🤖 Sistema:</strong><br><br>
+                📋 <strong>INFORMACIÓN DEL CARTEL #190</strong><br><br>
+                🛣️ Gasoducto/Ramal: GD-PICO TRUNCADO<br>
+                📍 Ubicación: Prog 23+615<br>
+                📌 Coordenadas: -46.8365433,-67.9582748<br><br>
+                ⚠️ <strong>━━━━━━━━━━━━━━━━━━━</strong><br>
+                🔴 <strong>TIPO DE CARTEL:</strong><br>
+                <strong>D<br>cañeria</strong><br>
+                ⚠️ <strong>━━━━━━━━━━━━━━━━━━━</strong><br><br>
+                📏 Tamaño: 600x450mm<br><br>
+                📸 Envía 3 fotos ANTES del trabajo
             </div>
             """, unsafe_allow_html=True)
-        
-        # Bot confirma registro completo
-        st.markdown("""
-        <div style='background: #f1f3f5; color: #212529; padding: 15px; 
-                    border-radius: 15px 15px 15px 0; margin: 10px 0; 
-                    max-width: 80%; border-left: 4px solid #51cf66;'>
-            <strong>🤖 Sistema:</strong><br><br>
-            🎉 <strong>¡Trabajo registrado exitosamente!</strong><br><br>
-            ✅ 3 fotos ANTES guardadas<br>
-            ✅ 3 fotos DESPUÉS guardadas<br>
-            ✅ Registro actualizado en planilla OUTPUT<br>
-            ✅ Links a Google Drive generados<br><br>
-            📊 <strong>Item 65 completado</strong><br>
-            ¿Desea registrar otro trabajo? Envíe el número del item.
-        </div>
-        """, unsafe_allow_html=True)
+            
+            # Usuario envía fotos ANTES
+            for i in range(1, 4):
+                st.markdown(f"""
+                <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                            color: white; padding: 12px; border-radius: 15px 15px 15px 0; 
+                            margin: 8px 0; max-width: 50%; margin-left: auto; text-align: center;'>
+                    📸 [Foto ANTES {i}]
+                </div>
+                """, unsafe_allow_html=True)
+            
+            # Bot confirma ANTES
+            st.markdown("""
+            <div style='background: #f1f3f5; color: #212529; padding: 15px; 
+                        border-radius: 15px 15px 15px 0; margin: 10px 0; 
+                        max-width: 80%; border-left: 4px solid #51cf66;'>
+                <strong>🤖 Sistema:</strong><br><br>
+                ✅ <strong>IMÁGENES GUARDADAS</strong><br><br>
+                🔧 Procede con el trabajo en el cartel #190.<br><br>
+                Cuando termines, envía <strong>'listo'</strong> o <strong>'finalizado'</strong>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Usuario dice listo
+            st.markdown("""
+            <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                        color: white; padding: 15px; border-radius: 15px 15px 15px 0; 
+                        margin: 10px 0; max-width: 70%; margin-left: auto;'>
+                <strong>👷 Operario:</strong><br>
+                listo
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Bot pide fotos DESPUÉS
+            st.markdown("""
+            <div style='background: #f1f3f5; color: #212529; padding: 15px; 
+                        border-radius: 15px 15px 15px 0; margin: 10px 0; 
+                        max-width: 80%; border-left: 4px solid #667eea;'>
+                <strong>🤖 Sistema:</strong><br><br>
+                📸 <strong>DESPUÉS DE FINALIZAR EL TRABAJO</strong><br><br>
+                Envía 3 fotos del estado del cartel #190 DESPUÉS de realizar el trabajo.<br><br>
+                📷📷📷 Envía las 3 imágenes ahora.
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Usuario envía fotos DESPUÉS
+            for i in range(1, 4):
+                st.markdown(f"""
+                <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                            color: white; padding: 12px; border-radius: 15px 15px 15px 0; 
+                            margin: 8px 0; max-width: 50%; margin-left: auto; text-align: center;'>
+                    📸 [Foto DESPUÉS {i}]
+                </div>
+                """, unsafe_allow_html=True)
+            
+            # Bot confirma registro completo
+            st.markdown("""
+            <div style='background: #f1f3f5; color: #212529; padding: 15px; 
+                        border-radius: 15px 15px 15px 0; margin: 10px 0; 
+                        max-width: 80%; border-left: 4px solid #51cf66;'>
+                <strong>🤖 Sistema:</strong><br><br>
+                ✅ <strong>TRABAJO COMPLETADO</strong><br><br>
+                📸 Imágenes DESPUÉS guardadas en Drive<br>
+                📊 Instalación EJECUTADA registrada en planilla OUTPUT<br><br>
+                📋 Cartel #190 - Trabajo finalizado<br>
+                📸 Imágenes antes: 3 | Imágenes después: 3<br><br>
+                🎉 ¡Excelente trabajo!
+            </div>
+            """, unsafe_allow_html=True)
+            
+        else:  # Modo Múltiple
+            st.markdown("### 📱 Modo Múltiple - Varios Carteles")
+            st.caption("⚡ Ideal para jornadas completas - Registra todos los ANTES al inicio, completa trabajo por trabajo")
+            
+            # Mensaje 1: Usuario envía múltiples números
+            st.markdown("""
+            <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                        color: white; padding: 15px; border-radius: 15px 15px 15px 0; 
+                        margin: 10px 0; max-width: 70%; margin-left: auto;'>
+                <strong>👷 Operario:</strong><br>
+                277, 278, 279, 290
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Bot responde con resumen
+            st.markdown("""
+            <div style='background: #f1f3f5; color: #212529; padding: 15px; 
+                        border-radius: 15px 15px 15px 0; margin: 10px 0; 
+                        max-width: 80%; border-left: 4px solid #667eea;'>
+                <strong>🤖 Sistema:</strong><br><br>
+                ✅ <strong>4 ITEMS PARA TRABAJAR</strong><br><br>
+                📋 #277 - Ruta 3 km 1450<br>
+                   🔴 Tipo: D - cañeria<br><br>
+                📋 #278 - Ruta 3 km 1670<br>
+                   🔴 Tipo: A - gasoducto<br><br>
+                📋 #279 - Av. Corrientes 2300<br>
+                   🔴 Tipo: D - válvula<br><br>
+                📋 #290 - Camino rural s/n<br>
+                   🔴 Tipo: B - estación<br><br>
+                📸 Enviaré información detallada de cada uno...<br>
+                Luego solicitaré las fotos ANTES de todos.
+            </div>
+            """, unsafe_allow_html=True)
+            
+            st.markdown("<small><i>Bot envía información detallada de cada item...</i></small>", unsafe_allow_html=True)
+            
+            # Bot pide ANTES del primero
+            st.markdown("""
+            <div style='background: #f1f3f5; color: #212529; padding: 15px; 
+                        border-radius: 15px 15px 15px 0; margin: 10px 0; 
+                        max-width: 80%; border-left: 4px solid #667eea;'>
+                <strong>🤖 Sistema:</strong><br><br>
+                📸 <strong>FOTOS ANTES - ITEM #277</strong><br><br>
+                Envía 3 fotos del estado ANTES del cartel #277.<br>
+                📷📷📷 Envía las 3 imágenes ahora.
+            </div>
+            """, unsafe_allow_html=True)
+            
+            st.markdown("<small><i>Usuario envía 3 fotos del 277...</i></small>", unsafe_allow_html=True)
+            
+            # Bot pide siguiente
+            st.markdown("""
+            <div style='background: #f1f3f5; color: #212529; padding: 12px; 
+                        border-radius: 15px 15px 15px 0; margin: 8px 0; 
+                        max-width: 70%; border-left: 4px solid #51cf66;'>
+                <strong>🤖 Sistema:</strong> ✅ Item #277 guardado<br>
+                📸 <strong>FOTOS ANTES - ITEM #278</strong>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            st.markdown("<small><i>Se repite para 279 y 290...</i></small>", unsafe_allow_html=True)
+            
+            # Todos los ANTES completados
+            st.markdown("""
+            <div style='background: #f1f3f5; color: #212529; padding: 15px; 
+                        border-radius: 15px 15px 15px 0; margin: 10px 0; 
+                        max-width: 80%; border-left: 4px solid #51cf66;'>
+                <strong>🤖 Sistema:</strong><br><br>
+                ✅ <strong>TODOS LOS ANTES COMPLETADOS</strong><br><br>
+                📋 Items listos para trabajar: 277, 278, 279, 290<br><br>
+                🔧 Procede con los trabajos.<br><br>
+                Cuando termines un trabajo, envía:<br>
+                <strong>'listo [numero]'</strong> o <strong>'finalizado [numero]'</strong><br><br>
+                Ejemplo: 'listo 277'
+            </div>
+            """, unsafe_allow_html=True)
+            
+            st.markdown("---")
+            st.markdown("<small><i>⏰ Horas después, operario termina el 277...</i></small>", unsafe_allow_html=True)
+            
+            # Usuario termina el primer trabajo
+            st.markdown("""
+            <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                        color: white; padding: 15px; border-radius: 15px 15px 15px 0; 
+                        margin: 10px 0; max-width: 70%; margin-left: auto;'>
+                <strong>👷 Operario:</strong><br>
+                listo 277
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Bot pide DESPUÉS del 277
+            st.markdown("""
+            <div style='background: #f1f3f5; color: #212529; padding: 15px; 
+                        border-radius: 15px 15px 15px 0; margin: 10px 0; 
+                        max-width: 80%; border-left: 4px solid #667eea;'>
+                <strong>🤖 Sistema:</strong><br><br>
+                📸 <strong>FOTOS DESPUÉS - ITEM #277</strong><br><br>
+                Envía 3 fotos del estado DESPUÉS del cartel #277.<br>
+                📷📷📷 Envía las 3 imágenes ahora.
+            </div>
+            """, unsafe_allow_html=True)
+            
+            st.markdown("<small><i>Usuario envía 3 fotos DESPUÉS del 277...</i></small>", unsafe_allow_html=True)
+            
+            # Bot confirma y da estado
+            st.markdown("""
+            <div style='background: #f1f3f5; color: #212529; padding: 15px; 
+                        border-radius: 15px 15px 15px 0; margin: 10px 0; 
+                        max-width: 80%; border-left: 4px solid #51cf66;'>
+                <strong>🤖 Sistema:</strong><br><br>
+                ✅ <strong>TRABAJO COMPLETADO - Item #277</strong><br><br>
+                📸 Imágenes DESPUÉS guardadas en Drive<br>
+                📊 Registrado en planilla OUTPUT<br><br>
+                📊 <strong>ESTADO GENERAL:</strong><br>
+                   ✅ Completados: 1<br>
+                   ⏳ Pendientes: 3<br><br>
+                💡 Items pendientes: 278, 279, 290<br>
+                Envía 'listo [numero]' al terminar el siguiente.
+            </div>
+            """, unsafe_allow_html=True)
+            
+            st.markdown("---")
+            st.markdown("<small><i>El proceso continúa hasta completar todos los items...</i></small>", unsafe_allow_html=True)
         
         st.markdown("---")
         st.markdown("""
-        ### 🔄 Resumen del Flujo:
-        1. **Operario envía número** → Sistema valida y responde con información del cartel
-        2. **Sistema solicita fotos ANTES** → Operario envía 3 fotos
-        3. **Sistema confirma ANTES** → Solicita fotos DESPUÉS
-        4. **Operario envía fotos DESPUÉS** → Sistema procesa
-        5. **Sistema registra automáticamente** → Actualiza OUTPUT y Drive
+        ### 🔄 Ventajas del Nuevo Sistema:
+        
+        **Modo Simple:**
+        - ✅ Perfecto para trabajos urgentes o individuales
+        - ✅ Flujo rápido y directo
+        - ✅ Ideal cuando se trabaja en un solo cartel
+        
+        **Modo Múltiple:**
+        - ⚡ Registra todos los ANTES al inicio del día
+        - ⚡ Trabaja sin interrupciones en todos los carteles
+        - ⚡ Completa cada item cuando lo terminas
+        - ⚡ No pierdes tiempo esperando respuestas
+        - ⚡ Cada foto va a la carpeta correcta automáticamente
+        - ⚡ Registro individual en OUTPUT por cada item
+        
+        **Comandos Válidos:**
+        - 📝 **Un cartel:** `190` o `item 190`
+        - 📝 **Múltiples carteles:** `277, 278, 279, 290`
+        - ✅ **Completar en modo simple:** `listo` o `finalizado`
+        - ✅ **Completar en modo múltiple:** `listo 277` o `finalizado 277`
         """)
     
     # Tab 2: Registrar desde Computadora
     with tab2:
         st.subheader("💻 Registrar Trabajo desde Computadora")
         st.info("🖥️ **Opción para registrar trabajos sin usar WhatsApp en celular**")
+        
+        # Verificar permisos
+        if not can_edit():
+            st.warning("🔒 **Esta función requiere autenticación**")
+            st.info("👉 Inicia sesión en la barra lateral para registrar trabajos desde la computadora.")
+            st.stop()
         
         # Inicializar session_state
         if 'estado_registro' not in st.session_state:
@@ -1013,22 +1273,27 @@ elif modo == "💬 WhatsApp":
             
             with col2:
                 st.markdown("<br>", unsafe_allow_html=True)
-                if st.button("🔍 Consultar", use_container_width=True, type="primary"):
+                if st.button("🔍 Consultar", width="stretch", type="primary"):
                     if numero_item:
                         with st.spinner("Consultando item..."):
                             try:
-                                # Simular consulta al sistema (puedes conectar con sheets_service)
+                                # Normalizar número (quitar ceros a la izquierda para comparación)
+                                numero_normalizado = str(int(numero_item))
+                                
                                 if sheets_service:
                                     carteles = get_carteles_cached()
-                                    cartel = next((c for c in carteles if str(c.get('numero_item', '')).strip() == numero_item.strip()), None)
+                                    # Buscar por número normalizado (sin ceros a la izquierda)
+                                    cartel = next((c for c in carteles if str(int(c.get('numero', '0'))).strip() == numero_normalizado), None)
                                     
                                     if cartel:
-                                        st.session_state.item_actual = numero_item
+                                        st.session_state.item_actual = cartel.get('numero')  # Usar el número original del cartel
                                         st.session_state.info_cartel = cartel
                                         st.session_state.estado_registro = 'esperando_antes'
                                         st.rerun()
                                     else:
                                         st.error(f"❌ Item {numero_item} no encontrado en la base de datos")
+                                        st.error(f"❌ Item {numero_item} no encontrado en la base de datos")
+                                        st.info(f"💡 Total de items en la base: {len(carteles)}")
                                 else:
                                     st.error("❌ No hay conexión con Google Sheets")
                             except Exception as e:
@@ -1043,11 +1308,13 @@ elif modo == "💬 WhatsApp":
             # Mostrar info del cartel
             if st.session_state.info_cartel:
                 info = st.session_state.info_cartel
+                tipo_info = info.get('tipo_completo', info.get('tipo_raw', 'N/A'))
                 st.markdown(f"""
                 📍 **Ubicación:** {info.get('ubicacion', 'N/A')}
                 🚰 **Gasoducto/Ramal:** {info.get('gasoducto_ramal', 'N/A')}
-                🏷️ **Tipo:** {info.get('tipo_cartel', 'N/A')}
-                📊 **Estado:** Pendiente
+                🏷️ **Tipo:** {tipo_info}
+                📏 **Tamaño:** {info.get('tamanio', 'N/A')}
+                📊 **Estado:** {info.get('estado', 'Pendiente')}
                 """)
             
             st.markdown("---")
@@ -1068,9 +1335,9 @@ elif modo == "💬 WhatsApp":
                     cols = st.columns(3)
                     for idx, foto in enumerate(uploaded_antes):
                         with cols[idx]:
-                            st.image(foto, caption=f"ANTES {idx+1}", use_column_width=True)
+                            st.image(foto, caption=f"ANTES {idx+1}")
                     
-                    if st.button("➡️ Continuar con fotos DESPUÉS", use_container_width=True, type="primary"):
+                    if st.button("➡️ Continuar con fotos DESPUÉS", width="stretch", type="primary"):
                         st.session_state.fotos_antes = uploaded_antes
                         st.session_state.estado_registro = 'esperando_despues'
                         st.rerun()
@@ -1107,35 +1374,77 @@ elif modo == "💬 WhatsApp":
                     cols = st.columns(3)
                     for idx, foto in enumerate(uploaded_despues):
                         with cols[idx]:
-                            st.image(foto, caption=f"DESPUÉS {idx+1}", use_column_width=True)
+                            st.image(foto, caption=f"DESPUÉS {idx+1}")
                     
                     st.markdown("---")
                     
-                    if st.button("🎉 Registrar Trabajo Completo", use_container_width=True, type="primary"):
+                    if st.button("🎉 Registrar Trabajo Completo", width="stretch", type="primary"):
                         with st.spinner("📤 Procesando y registrando trabajo..."):
                             try:
-                                # Aquí se enviaría al webhook de FastAPI
-                                # Por ahora simulamos el proceso
-                                st.success("✅ Trabajo registrado exitosamente")
-                                st.info("""
-                                📊 **Proceso completado:**
-                                - ✅ 3 fotos ANTES guardadas en Drive
-                                - ✅ 3 fotos DESPUÉS guardadas en Drive
-                                - ✅ Registro actualizado en planilla OUTPUT
-                                - ✅ Links generados automáticamente
-                                """)
+                                numero_item = st.session_state.item_actual
+                                item_formateado = str(numero_item).zfill(3)
                                 
-                                # Mostrar botón para registrar otro
-                                if st.button("➕ Registrar otro trabajo", key="otro_trabajo"):
-                                    st.session_state.estado_registro = 'inicial'
-                                    st.session_state.item_actual = None
-                                    st.session_state.info_cartel = None
-                                    st.session_state.fotos_antes = []
-                                    st.session_state.fotos_despues = []
-                                    st.rerun()
+                                # Subir fotos ANTES a Drive
+                                urls_antes = []
+                                for idx, foto in enumerate(st.session_state.fotos_antes, 1):
+                                    filename = f"{item_formateado}-{str(idx).zfill(3)}.jpg"
+                                    img_bytes = foto.getvalue()
+                                    url = sheets_service.subir_imagen_antes_despues(
+                                        img_bytes,
+                                        filename,
+                                        numero_item,
+                                        'antes'
+                                    )
+                                    if url:
+                                        urls_antes.append(url)
+                                
+                                # Subir fotos DESPUÉS a Drive
+                                urls_despues = []
+                                for idx, foto in enumerate(uploaded_despues, 1):
+                                    filename = f"{item_formateado}-{str(idx + 3).zfill(3)}.jpg"
+                                    img_bytes = foto.getvalue()
+                                    url = sheets_service.subir_imagen_antes_despues(
+                                        img_bytes,
+                                        filename,
+                                        numero_item,
+                                        'despues'
+                                    )
+                                    if url:
+                                        urls_despues.append(url)
+                                
+                                # Registrar en planilla OUTPUT
+                                cartel_info = st.session_state.info_cartel
+                                registro_exitoso = sheets_service.registrar_trabajo_ecogas({
+                                    'numero_item': numero_item,
+                                    'cartel_info': cartel_info
+                                })
+                                
+                                if registro_exitoso and len(urls_antes) == 3 and len(urls_despues) == 3:
+                                    st.success("✅ Trabajo registrado exitosamente")
+                                    st.info(f"""
+                                    📊 **Proceso completado:**
+                                    - ✅ {len(urls_antes)} fotos ANTES guardadas en Drive
+                                    - ✅ {len(urls_despues)} fotos DESPUÉS guardadas en Drive
+                                    - ✅ Registro actualizado en planilla OUTPUT
+                                    - ✅ Links generados automáticamente
+                                    """)
+                                    
+                                    # Botón para registrar otro
+                                    if st.button("➕ Registrar otro trabajo", key="otro_trabajo"):
+                                        st.session_state.estado_registro = 'inicial'
+                                        st.session_state.item_actual = None
+                                        st.session_state.info_cartel = None
+                                        st.session_state.fotos_antes = []
+                                        st.session_state.fotos_despues = []
+                                        st.rerun()
+                                else:
+                                    st.error("⚠️ Error: No se completó el registro correctamente")
+                                    st.warning(f"Fotos ANTES: {len(urls_antes)}/3 | Fotos DESPUÉS: {len(urls_despues)}/3 | Registro OUTPUT: {'✅' if registro_exitoso else '❌'}")
                                     
                             except Exception as e:
                                 st.error(f"❌ Error al registrar: {str(e)}")
+                                import traceback
+                                st.code(traceback.format_exc())
                 elif len(uploaded_despues) < 3:
                     st.warning(f"⚠️ Se requieren 3 fotos. Has subido {len(uploaded_despues)}.")
                 else:
@@ -1176,22 +1485,22 @@ elif modo == "📦 Gestión de Stock":
             col1, col2, col3, col4 = st.columns(4)
             
             with col1:
-                st.image("data/Cañeria.png", use_container_width=True)
+                st.image("data/Cañeria.png", width="stretch")
                 st.markdown("<h4 style='text-align: center;'>Cañería de Gas</h4>", unsafe_allow_html=True)
                 st.markdown("<p style='text-align: center; font-size: 12px; color: #666;'>Cartel indicador de cañería individual en las cercanías</p>", unsafe_allow_html=True)
             
             with col2:
-                st.image("data/Cañerias.png", use_container_width=True)
+                st.image("data/Cañerias.png", width="stretch")
                 st.markdown("<h4 style='text-align: center;'>Cañerías de Gas</h4>", unsafe_allow_html=True)
                 st.markdown("<p style='text-align: center; font-size: 12px; color: #666;'>Cartel para múltiples cañerías en las cercanías</p>", unsafe_allow_html=True)
             
             with col3:
-                st.image("data/Gasoducto.png", use_container_width=True)
+                st.image("data/Gasoducto.png", width="stretch")
                 st.markdown("<h4 style='text-align: center;'>Gasoducto</h4>", unsafe_allow_html=True)
                 st.markdown("<p style='text-align: center; font-size: 12px; color: #666;'>Cartel de gasoducto individual en las cercanías</p>", unsafe_allow_html=True)
             
             with col4:
-                st.image("data/Gasoductos.png", use_container_width=True)
+                st.image("data/Gasoductos.png", width="stretch")
                 st.markdown("<h4 style='text-align: center;'>Gasoductos</h4>", unsafe_allow_html=True)
                 st.markdown("<p style='text-align: center; font-size: 12px; color: #666;'>Cartel para red de múltiples gasoductos en las cercanías</p>", unsafe_allow_html=True)
             
@@ -1236,6 +1545,12 @@ elif modo == "📦 Gestión de Stock":
         # Tab 2: Registrar movimiento
         with tab2:
             st.subheader("Registrar Movimiento de Stock")
+            
+            # Verificar permisos
+            if not can_edit():
+                st.warning("🔒 **Esta función requiere autenticación**")
+                st.info("👉 Inicia sesión en la barra lateral para registrar movimientos de stock.")
+                st.stop()
             
             col1, col2 = st.columns(2)
             
@@ -1393,7 +1708,7 @@ elif modo == "📦 Gestión de Stock":
             st.markdown("---")
             
             # Tabla de movimientos
-            st.dataframe(df_filtrado, hide_index=True, use_container_width=True)
+            st.dataframe(df_filtrado, hide_index=True, width="stretch")
             
             # Resumen por operario
             st.markdown("### 👷 Resumen por Operario")
@@ -1401,7 +1716,7 @@ elif modo == "📦 Gestión de Stock":
                 "Cantidad": "sum",
                 "Cartel": "count"
             }).rename(columns={"Cartel": "Movimientos"})
-            st.dataframe(operarios, use_container_width=True)
+            st.dataframe(operarios, width="stretch")
     else:
         st.error("Servicio de Google Sheets no disponible")
 
@@ -1434,7 +1749,7 @@ elif modo == "👷 Gestión de Empleados":
                     st.markdown("---")
                     
                     df = pd.DataFrame(empleados)
-                    st.dataframe(df, hide_index=True, use_container_width=True)
+                    st.dataframe(df, hide_index=True, width="stretch")
                 else:
                     st.info("No hay empleados registrados")
             except Exception as e:
@@ -1442,6 +1757,12 @@ elif modo == "👷 Gestión de Empleados":
         
         with tab2:
             st.subheader("Agregar Nuevo Empleado")
+            
+            # Verificar permisos
+            if not can_edit():
+                st.warning("🔒 **Esta función requiere autenticación**")
+                st.info("👉 Inicia sesión en la barra lateral para agregar empleados.")
+                st.stop()
             
             col1, col2 = st.columns(2)
             
@@ -1528,7 +1849,7 @@ elif modo == "📋 Órdenes de Trabajo":
             
             col1, col2 = st.columns([3, 1])
             with col2:
-                if st.button("🔄 Actualizar Datos", use_container_width=True):
+                if st.button("🔄 Actualizar Datos", width="stretch"):
                     st.cache_data.clear()
                     st.rerun()
             
@@ -1576,7 +1897,7 @@ elif modo == "📋 Órdenes de Trabajo":
                 
                 with col3:
                     st.markdown("<br>", unsafe_allow_html=True)
-                    if st.button("🔄 Limpiar Filtros", use_container_width=True):
+                    if st.button("🔄 Limpiar Filtros", width="stretch"):
                         st.rerun()
                 
                 # Aplicar filtros
@@ -1602,7 +1923,7 @@ elif modo == "📋 Órdenes de Trabajo":
                 
                 st.dataframe(
                     df_display,
-                    use_container_width=True,
+                    width="stretch",
                     height=400,
                     hide_index=True
                 )
@@ -1631,7 +1952,7 @@ elif modo == "📋 Órdenes de Trabajo":
                             st.link_button(
                                 "📁 Ver Carpeta Drive",
                                 ultimo['fotos'],
-                                use_container_width=True
+                                width="stretch"
                             )
                             st.success("✅ Fotos almacenadas")
                         else:
@@ -1709,7 +2030,7 @@ elif modo == "📋 Órdenes de Trabajo":
                         })
                     
                     df_tipos = pd.DataFrame(datos_tipos)
-                    st.dataframe(df_tipos, hide_index=True, use_container_width=True)
+                    st.dataframe(df_tipos, hide_index=True, width="stretch")
                     
                     st.markdown("---")
                     
@@ -1743,7 +2064,7 @@ elif modo == "📋 Órdenes de Trabajo":
                     col1, col2 = st.columns([3, 2])
                     
                     with col1:
-                        st.dataframe(df_zonas, hide_index=True, use_container_width=True)
+                        st.dataframe(df_zonas, hide_index=True, width="stretch")
                     
                     with col2:
                         st.markdown("#### 📈 Resumen")
@@ -1779,7 +2100,7 @@ elif modo == "📋 Órdenes de Trabajo":
                         })
                     
                     df_ramales = pd.DataFrame(datos_ramales)
-                    st.dataframe(df_ramales, hide_index=True, use_container_width=True)
+                    st.dataframe(df_ramales, hide_index=True, width="stretch")
                     
                     # Nota sobre datos simulados
                     st.info("""
@@ -1836,7 +2157,7 @@ elif modo == "🗺️ Zonas y Ramales":
                             ramales_zona = sorted(list(set([c.get('gasoducto_ramal', '') for c in carteles if c.get('zona') == zona_filtro and c.get('gasoducto_ramal')])))
                         else:
                             ramales_zona = sorted(list(set([c.get('gasoducto_ramal', '') for c in carteles if c.get('gasoducto_ramal')])))
-                        ramal_filtro = st.selectbox("Filtrar por ramal", ["Todos"] + ramales_zona)
+                        ramal_filtro = st.selectbox("Filtrar por ramal", ["Todos"] + ramales_zona, key="ramal_filtro_lista_carteles")
                     
                     # Filtrar carteles
                     carteles_filtrados = []
@@ -1981,7 +2302,8 @@ elif modo == "🗺️ Zonas y Ramales":
                     ramal_seleccionado = st.selectbox(
                         "🔍 Selecciona un ramal para ver detalles",
                         options=["-- Selecciona --"] + ramales,
-                        index=0
+                        index=0,
+                        key="ramal_seleccionado_lista_ramales_tab2"
                     )
                     
                     if ramal_seleccionado != "-- Selecciona --":
@@ -2059,7 +2381,7 @@ elif modo == "🗺️ Zonas y Ramales":
                             
                             # Mostrar DataFrame
                             df_detalle_display = pd.DataFrame(detalle_mejorado)
-                            st.dataframe(df_detalle_display, hide_index=True, use_container_width=True, height=400)
+                            st.dataframe(df_detalle_display, hide_index=True, width="stretch", height=400)
                     else:
                         st.info("👆 Selecciona un ramal para ver los detalles")
                 else:
@@ -2067,8 +2389,8 @@ elif modo == "🗺️ Zonas y Ramales":
             except Exception as e:
                 st.error(f"Error: {e}")
         
-        # Tab 2: Lista de Ramales
-        with tab2:
+        # Tab 3: Zonas Operativas
+        with tab3:
             try:
                 carteles = get_carteles_cached()
                 trabajos = get_trabajos_output()
@@ -2100,7 +2422,8 @@ elif modo == "🗺️ Zonas y Ramales":
                     ramal_seleccionado = st.selectbox(
                         "🔍 Selecciona un ramal para ver detalles",
                         options=["-- Selecciona --"] + ramales,
-                        index=0
+                        index=0,
+                        key="ramal_seleccionado_zonas_operativas_tab3"
                     )
                     
                     if ramal_seleccionado != "-- Selecciona --":
@@ -2178,7 +2501,7 @@ elif modo == "🗺️ Zonas y Ramales":
                             
                             # Mostrar DataFrame
                             df_detalle_display = pd.DataFrame(detalle_mejorado)
-                            st.dataframe(df_detalle_display, hide_index=True, use_container_width=True, height=400)
+                            st.dataframe(df_detalle_display, hide_index=True, width="stretch", height=400)
                     else:
                         st.info("👆 Selecciona un ramal para ver los detalles")
                 else:
@@ -2234,7 +2557,7 @@ elif modo == "🗺️ Zonas y Ramales":
                         for zona, carteles_zona in sorted(zonas_dict.items(), key=lambda x: len(x[1]), reverse=True)
                     ])
                     
-                    st.dataframe(df_zonas, hide_index=True, use_container_width=True)
+                    st.dataframe(df_zonas, hide_index=True, width="stretch")
                     
                     st.markdown("---")
                     
@@ -2282,7 +2605,7 @@ elif modo == "🗺️ Zonas y Ramales":
                         
                         # Tabla de carteles en la zona
                         df_zona = pd.DataFrame(carteles_zona)
-                        st.dataframe(df_zona, hide_index=True, use_container_width=True)
+                        st.dataframe(df_zona, hide_index=True, width="stretch")
                 else:
                     st.info("No hay datos disponibles")
             except Exception as e:
