@@ -68,12 +68,22 @@ class GoogleSheetsService:
         
         self.client = gspread.authorize(creds)
         
-        # OAuth para Drive (evita problemas de cuota)
+        # IMPORTANTE: OAuth para Drive (evita problemas de cuota con Service Accounts)
         self.drive_service = self._init_drive_service_oauth()
         
-        # Si OAuth falla, usar service account como fallback
+        # Si OAuth no está disponible, mostrar warning claro
         if not self.drive_service:
-            print("⚠️  Usando service account para Drive (puede tener limitaciones)")
+            print("\n" + "=" * 70)
+            print("⚠️  ADVERTENCIA CRÍTICA: OAuth no disponible para Drive")
+            print("=" * 70)
+            print("Las Service Accounts NO tienen cuota de almacenamiento.")
+            print("NO se podrán subir imágenes a Drive sin OAuth.\n")
+            print("SOLUCIÓN:")
+            print("  1. Ejecuta: python setup_oauth_drive.py")
+            print("  2. Completa la autenticación")
+            print("  3. Reinicia el servidor")
+            print("=" * 70 + "\n")
+            # Usar service account como fallback (solo para lectura)
             self.drive_service = build('drive', 'v3', credentials=creds)
         
         # IDs de las hojas - leer desde secrets o env
@@ -115,30 +125,83 @@ class GoogleSheetsService:
     def _init_drive_service_oauth(self):
         """Inicializa servicio de Drive con OAuth (evita límites de cuota)."""
         try:
-            token_path = 'token_drive.pickle'
+            from google.oauth2.credentials import Credentials
+            import base64
+            
             creds = None
             
-            # Cargar token existente
-            if os.path.exists(token_path):
-                with open(token_path, 'rb') as token:
-                    creds = pickle.load(token)
+            # MÉTODO 1: Cargar desde variable de entorno (RENDER/PRODUCCIÓN)
+            token_env = os.getenv('DRIVE_OAUTH_TOKEN_BASE64')
+            if token_env:
+                print("🔍 Intentando cargar OAuth desde variable de entorno...")
+                try:
+                    # Decodificar base64 y parsear JSON
+                    decoded = base64.b64decode(token_env.encode('utf-8')).decode('utf-8')
+                    token_data = json.loads(decoded)
+                    
+                    # Crear credenciales desde dict
+                    creds = Credentials(
+                        token=token_data['token'],
+                        refresh_token=token_data['refresh_token'],
+                        token_uri=token_data['token_uri'],
+                        client_id=token_data['client_id'],
+                        client_secret=token_data['client_secret'],
+                        scopes=token_data['scopes']
+                    )
+                    print("✅ OAuth cargado desde variable de entorno")
+                    
+                    # Verificar si necesita refresh
+                    if creds.expired and creds.refresh_token:
+                        print("🔄 Token expirado, renovando...")
+                        creds.refresh(Request())
+                        print("✅ Token renovado")
+                    
+                except Exception as env_error:
+                    print(f"⚠️  Error al cargar desde variable de entorno: {env_error}")
+                    creds = None
             
-            # Verificar si necesita refresh
-            if creds and creds.expired and creds.refresh_token:
-                creds.refresh(Request())
-                # Guardar token actualizado
-                with open(token_path, 'wb') as token:
-                    pickle.dump(creds, token)
+            # MÉTODO 2: Cargar desde archivo local (DESARROLLO LOCAL)
+            if not creds:
+                token_path = 'token_drive.pickle'
+                print(f"🔍 Buscando token OAuth en archivo: {token_path}")
+                
+                if os.path.exists(token_path):
+                    print(f"✅ Archivo {token_path} encontrado")
+                    with open(token_path, 'rb') as token:
+                        creds = pickle.load(token)
+                    print(f"📝 Token cargado. Válido: {creds.valid if creds else 'N/A'}, Expirado: {creds.expired if creds else 'N/A'}")
+                    
+                    # Verificar si necesita refresh
+                    if creds and creds.expired and creds.refresh_token:
+                        print("🔄 Token expirado, intentando renovar...")
+                        try:
+                            creds.refresh(Request())
+                            # Guardar token actualizado
+                            with open(token_path, 'wb') as token:
+                                pickle.dump(creds, token)
+                            print("✅ Token renovado exitosamente")
+                        except Exception as refresh_error:
+                            print(f"❌ Error al renovar token: {refresh_error}")
+                            print("   Necesitas ejecutar: python setup_oauth_drive.py")
+                            return None
+                else:
+                    print(f"❌ Archivo {token_path} NO encontrado")
+                    print("   📝 Para desarrollo local: python setup_oauth_drive.py")
+                    print("   📝 Para Render: configura DRIVE_OAUTH_TOKEN_BASE64")
+                    return None
             
             # Si hay credenciales válidas, crear servicio
             if creds and creds.valid:
-                print("✅ Usando OAuth para Google Drive")
+                print("✅ Usando OAuth para Google Drive (sin límites de cuota)")
                 return build('drive', 'v3', credentials=creds)
-            
-            return None
+            else:
+                print(f"❌ Credenciales inválidas. Valid: {creds.valid if creds else 'N/A'}")
+                return None
             
         except Exception as e:
-            print(f"⚠️  No se pudo cargar OAuth para Drive: {e}")
+            print(f"❌ Error al cargar OAuth para Drive: {e}")
+            import traceback
+            traceback.print_exc()
             return None
     
     def _get_database_sheet(self):

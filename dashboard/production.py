@@ -115,154 +115,253 @@ login_form()
 
 st.sidebar.markdown("---")
 
-# CSS personalizado para producción
+# CSS personalizado para producción - Tema Oscuro Profesional
 st.markdown("""
 <style>
-    /* Estilos mejorados para producción */
-    .main {
-        background-color: #f8f9fa;
+    /* Importar fuente Google Fonts - Montserrat */
+    @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800;900&display=swap');
+    
+    /* Título principal - Simple y centrado */
+    h1 {
+        font-family: 'Montserrat', sans-serif !important;
+        font-weight: 800 !important;
+        text-align: center !important;
+        color: #FAFAFA !important;
+        letter-spacing: 2px !important;
+        margin: 20px 0 !important;
     }
     
+    h3 {
+        font-family: 'Montserrat', sans-serif !important;
+        text-align: center !important;
+        color: #B0B0B0 !important;
+    }
+    
+    /* Tema oscuro */
+    .main {
+        background-color: #0E1117;
+    }
+    
+    /* Cards de métricas - Elegante gris oscuro */
+    .metric-card {
+        background: linear-gradient(135deg, #1E1E1E 0%, #2D2D2D 100%);
+        border-radius: 12px;
+        padding: 20px;
+        text-align: center;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        border: 2px solid #3D3D3D;
+        border-left: 4px solid #666666;
+        color: #FAFAFA;
+        transition: all 0.3s ease;
+    }
+    
+    .metric-card:hover {
+        box-shadow: 0 6px 16px rgba(0,0,0,0.5);
+        transform: translateY(-2px);
+        border-left-color: #999999;
+    }
+    
+    .metric-card h2 {
+        color: #FAFAFA !important;
+        font-weight: 700;
+    }
+    
+    .metric-card h3 {
+        color: #FAFAFA !important;
+    }
+    
+    .metric-card p {
+        color: #a6a6a6 !important;
+    }
+    
+    /* Mensajes WhatsApp - Tema oscuro */
     .whatsapp-msg {
-        background-color: #DCF8C6;
+        background: linear-gradient(135deg, #075E54 0%, #0A7C6F 100%);
         border-radius: 10px;
-        padding: 10px;
+        padding: 12px 15px;
         margin: 5px 0;
         max-width: 70%;
-        color: #000000 !important;
-        border: 1px solid #a8e6a1;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        color: #FAFAFA !important;
+        border: 1px solid #0A7C6F;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
     }
     
     .whatsapp-msg-received {
-        background-color: #FFFFFF;
+        background: linear-gradient(135deg, #2D2D2D 0%, #3D3D3D 100%);
         border-radius: 10px;
-        padding: 10px;
+        padding: 12px 15px;
         margin: 5px 0;
         max-width: 70%;
-        color: #000000 !important;
-        border: 1px solid #e0e0e0;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        color: #FAFAFA !important;
+        border: 1px solid #3D3D3D;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
     }
     
     .whatsapp-msg small, .whatsapp-msg-received small {
-        color: #666666 !important;
+        color: #B0B0B0 !important;
         font-weight: bold;
     }
     
     .whatsapp-msg p, .whatsapp-msg-received p {
-        color: #000000 !important;
+        color: #FAFAFA !important;
         margin: 0;
     }
     
-    .metric-card {
-        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-        border-radius: 10px;
-        padding: 20px;
-        text-align: center;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-        border: 1px solid #d0d7de;
-        color: #000000;
-    }
-    
-    .metric-card h2, .metric-card h3, .metric-card p {
-        color: #000000 !important;
-    }
-    
+    /* Status badges - Colores vibrantes */
     .status-badge {
-        padding: 5px 10px;
-        border-radius: 5px;
+        padding: 6px 12px;
+        border-radius: 6px;
         font-weight: bold;
         display: inline-block;
         margin: 5px 0;
+        text-transform: uppercase;
+        font-size: 0.85em;
+        letter-spacing: 0.5px;
     }
     
     .status-realizado {
-        background-color: #d4edda;
-        color: #155724;
+        background-color: #28A745;
+        color: #FFFFFF;
+        box-shadow: 0 2px 4px rgba(40, 167, 69, 0.3);
     }
     
     .status-proceso {
-        background-color: #fff3cd;
-        color: #856404;
+        background-color: #FFA500;
+        color: #000000;
+        box-shadow: 0 2px 4px rgba(255, 165, 0, 0.3);
     }
     
     .status-espera {
-        background-color: #f8d7da;
-        color: #721c24;
+        background-color: #DC3545;
+        color: #FFFFFF;
+        box-shadow: 0 2px 4px rgba(220, 53, 69, 0.3);
     }
     
-    /* Estilos para alertas de producción */
+    /* Alertas - Tema oscuro */
     .alert-critical {
-        background-color: #f8d7da;
-        border-left: 4px solid #dc3545;
+        background-color: #3D1E1F;
+        border-left: 5px solid #DC3545;
         padding: 15px;
-        border-radius: 5px;
+        border-radius: 8px;
         margin: 10px 0;
-        color: #000000;
+        color: #FAFAFA;
+        box-shadow: 0 2px 6px rgba(220, 53, 69, 0.2);
     }
     
     .alert-critical strong {
-        color: #000000 !important;
+        color: #FF6B6B !important;
     }
     
     .alert-warning {
-        background-color: #fff3cd;
-        border-left: 4px solid #ffc107;
+        background-color: #3D3320;
+        border-left: 5px solid #FFA500;
         padding: 15px;
-        border-radius: 5px;
+        border-radius: 8px;
         margin: 10px 0;
-        color: #000000;
+        color: #FAFAFA;
+        box-shadow: 0 2px 6px rgba(255, 165, 0, 0.2);
     }
     
     .alert-warning strong {
-        color: #000000 !important;
+        color: #FFB84D !important;
     }
     
     .alert-success {
-        background-color: #d4edda;
-        border-left: 4px solid #28a745;
+        background-color: #1E3D25;
+        border-left: 5px solid #28A745;
         padding: 15px;
-        border-radius: 5px;
+        border-radius: 8px;
         margin: 10px 0;
-        color: #000000;
+        color: #FAFAFA;
+        box-shadow: 0 2px 6px rgba(40, 167, 69, 0.2);
     }
     
     .alert-success strong {
-        color: #000000 !important;
+        color: #5FD37A !important;
     }
     
-    /* Chat container */
+    /* Chat container - WhatsApp dark theme */
     .chat-container {
         max-height: 600px;
         overflow-y: auto;
         padding: 20px;
-        background-color: #e5ddd5;
-        border-radius: 10px;
+        background-color: #0B141A;
+        border-radius: 12px;
+        border: 1px solid #2D2D2D;
     }
     
     .message-operario {
-        background: #DCF8C6;
+        background: #075E54;
         border-radius: 10px;
         padding: 12px 15px;
         margin: 10px 50px 10px 10px;
         text-align: left;
-        color: #000000;
+        color: #FAFAFA;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.4);
     }
     
     .message-bot {
-        background: #E8E8E8;
+        background: #2D2D2D;
         border-radius: 10px;
         padding: 12px 15px;
         margin: 10px 10px 10px 50px;
         text-align: left;
-        color: #000000;
+        color: #FAFAFA;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.4);
     }
     
     .timestamp {
         font-size: 11px;
-        color: #666;
+        color: #8A8A8A;
         margin-top: 5px;
+    }
+    
+    /* Ajustes generales para mejor contraste */
+    .stMarkdown, .stText {
+        color: #FAFAFA !important;
+    }
+    
+    /* Sidebar con borde sutil */
+    section[data-testid="stSidebar"] {
+        background-color: #1E1E1E;
+        border-right: 1px solid #3a3d47;
+    }
+    
+    /* Tablas más legibles */
+    .dataframe {
+        background-color: #1E1E1E !important;
+        color: #FAFAFA !important;
+    }
+    
+    .dataframe th {
+        background-color: #2D2D2D !important;
+        color: #CCCCCC !important;
+        font-weight: 700 !important;
+    }
+    
+    .dataframe td {
+        color: #B0B0B0 !important;
+    }
+    
+    /* Botones con estilo profesional */
+    .stButton>button {
+        background-color: #4A4A4A;
+        color: #FAFAFA;
+        font-weight: 600;
+        border: none;
+        border-radius: 8px;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+        transition: all 0.3s ease;
+    }
+    
+    .stButton>button:hover {
+        background-color: #5A5A5A;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+        transform: translateY(-2px);
+    }
+    
+    .stButton>button:active {
+        transform: translateY(0px);
     }
 </style>
 """, unsafe_allow_html=True)
@@ -331,7 +430,7 @@ try:
 except Exception as e:
     pass
 
-# Título principal sin fondo
+# Título principal
 st.title("🚦 VIAL PARKING SA al servicio de ECOGAS")
 st.markdown("### Sistema Integral de Señalización de Gasoductos y Ramales")
 

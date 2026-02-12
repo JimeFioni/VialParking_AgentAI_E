@@ -1,0 +1,27 @@
+[theme]
+# Tema oscuro profesional
+base = "dark"
+
+# Color primario - Gris claro
+primaryColor = "#CCCCCC"
+
+# Color de fondo - Negro/Gris muy oscuro
+backgroundColor = "#0E1117"
+
+# Color de fondo secundario - Gris oscuro
+secondaryBackgroundColor = "#1E2127"
+
+# Color de texto - Blanco suave
+textColor = "#FAFAFA"
+
+# Fuente - Sans serif moderna y profesional
+font = "sans serif"
+
+[server]
+# Configuración del servidor
+headless = true
+enableXsrfProtection = true
+
+[browser]
+# Configuración del navegador
+gatherUsageStats = false
