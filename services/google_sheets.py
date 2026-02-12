@@ -23,20 +23,41 @@ class GoogleSheetsService:
         
         # Intentar leer credenciales desde Streamlit secrets (producción)
         creds = None
+        error_msg = None
+        
         try:
             import streamlit as st
             if hasattr(st, 'secrets') and 'GOOGLE_SHEETS_CREDENTIALS_JSON' in st.secrets:
-                print("✅ Usando credenciales desde Streamlit secrets")
-                creds_dict = json.loads(st.secrets['GOOGLE_SHEETS_CREDENTIALS_JSON'])
-                creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-        except (ImportError, Exception) as e:
-            # No está en Streamlit o no hay secrets configurados
-            pass
+                try:
+                    print("🔍 Intentando cargar credenciales desde Streamlit secrets...")
+                    creds_json = st.secrets['GOOGLE_SHEETS_CREDENTIALS_JSON']
+                    print(f"📄 Tipo de secret: {type(creds_json)}")
+                    
+                    # Si ya es un dict, usarlo directamente
+                    if isinstance(creds_json, dict):
+                        creds_dict = creds_json
+                    else:
+                        # Si es string, parsearlo
+                        creds_dict = json.loads(creds_json)
+                    
+                    creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+                    print("✅ Credenciales cargadas desde Streamlit secrets")
+                except Exception as e:
+                    error_msg = f"Error al parsear credenciales desde secrets: {str(e)}"
+                    print(f"❌ {error_msg}")
+        except ImportError:
+            # No está en Streamlit
+            print("ℹ️  No está en entorno Streamlit")
         
         # Si no hay credenciales desde secrets, usar archivo local
         if creds is None:
             credentials_path = os.getenv("GOOGLE_SHEETS_CREDENTIALS_PATH", "credentials.json")
             if not os.path.exists(credentials_path):
+                if error_msg:
+                    raise Exception(
+                        f"No se pudieron cargar credenciales desde secrets: {error_msg}\n"
+                        f"Tampoco existe el archivo local: {credentials_path}"
+                    )
                 raise FileNotFoundError(
                     f"Archivo de credenciales no encontrado: {credentials_path}\n"
                     "Descarga las credenciales desde Google Cloud Console"
