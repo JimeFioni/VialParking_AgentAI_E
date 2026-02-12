@@ -27,8 +27,9 @@ class GoogleSheetsService:
         
         try:
             import streamlit as st
-            if hasattr(st, 'secrets') and 'GOOGLE_SHEETS_CREDENTIALS_JSON' in st.secrets:
-                try:
+            # Verificar si realmente estamos en un entorno Streamlit con secrets configurados
+            try:
+                if hasattr(st, 'secrets') and 'GOOGLE_SHEETS_CREDENTIALS_JSON' in st.secrets:
                     print("🔍 Intentando cargar credenciales desde Streamlit secrets...")
                     creds_json = st.secrets['GOOGLE_SHEETS_CREDENTIALS_JSON']
                     print(f"📄 Tipo de secret: {type(creds_json)}")
@@ -42,9 +43,9 @@ class GoogleSheetsService:
                     
                     creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
                     print("✅ Credenciales cargadas desde Streamlit secrets")
-                except Exception as e:
-                    error_msg = f"Error al parsear credenciales desde secrets: {str(e)}"
-                    print(f"❌ {error_msg}")
+            except Exception as e:
+                # Puede ser StreamlitSecretNotFoundError o cualquier otro error de secrets
+                print(f"ℹ️  Secrets no disponibles en este entorno: {type(e).__name__}")
         except ImportError:
             # No está en Streamlit
             print("ℹ️  No está en entorno Streamlit")
@@ -79,14 +80,19 @@ class GoogleSheetsService:
         try:
             import streamlit as st
             if hasattr(st, 'secrets'):
-                self.acciones_sheet_id = st.secrets.get("ACCIONES_SHEET_ID", os.getenv("ACCIONES_SHEET_ID"))
-                self.database_sheet_id = st.secrets.get("DATABASE_SHEET_ID", os.getenv("DATABASE_SHEET_ID"))
-                self.stock_folder_id = st.secrets.get("STOCK_DRIVE_FOLDER_ID", os.getenv("STOCK_DRIVE_FOLDER_ID"))
-                self.ecogas_sheet_id = st.secrets.get("ECOGAS_SHEET_ID", os.getenv("ECOGAS_SHEET_ID"))
-                self.output_sheet_id = st.secrets.get("OUTPUT_SHEET_ID", os.getenv("OUTPUT_SHEET_ID"))
-                self.whatsapp_log_sheet_id = st.secrets.get("WHATSAPP_LOG_SHEET_ID", os.getenv("WHATSAPP_LOG_SHEET_ID", self.output_sheet_id))
-                self.imagenes_carteles_folder_id = st.secrets.get("IMAGENES_CARTELES_FOLDER_ID", os.getenv("IMAGENES_CARTELES_FOLDER_ID"))
-                self.output_imagenes_folder_id = st.secrets.get("OUTPUT_IMAGENES_FOLDER_ID", os.getenv("OUTPUT_IMAGENES_FOLDER_ID"))
+                try:
+                    # Intentar acceder a secrets (puede fallar si no está en entorno Streamlit)
+                    self.acciones_sheet_id = st.secrets.get("ACCIONES_SHEET_ID", os.getenv("ACCIONES_SHEET_ID"))
+                    self.database_sheet_id = st.secrets.get("DATABASE_SHEET_ID", os.getenv("DATABASE_SHEET_ID"))
+                    self.stock_folder_id = st.secrets.get("STOCK_DRIVE_FOLDER_ID", os.getenv("STOCK_DRIVE_FOLDER_ID"))
+                    self.ecogas_sheet_id = st.secrets.get("ECOGAS_SHEET_ID", os.getenv("ECOGAS_SHEET_ID"))
+                    self.output_sheet_id = st.secrets.get("OUTPUT_SHEET_ID", os.getenv("OUTPUT_SHEET_ID"))
+                    self.whatsapp_log_sheet_id = st.secrets.get("WHATSAPP_LOG_SHEET_ID", os.getenv("WHATSAPP_LOG_SHEET_ID", self.output_sheet_id))
+                    self.imagenes_carteles_folder_id = st.secrets.get("IMAGENES_CARTELES_FOLDER_ID", os.getenv("IMAGENES_CARTELES_FOLDER_ID"))
+                    self.output_imagenes_folder_id = st.secrets.get("OUTPUT_IMAGENES_FOLDER_ID", os.getenv("OUTPUT_IMAGENES_FOLDER_ID"))
+                except Exception:
+                    # Secrets no disponibles, usar env vars
+                    raise ImportError
             else:
                 raise ImportError
         except (ImportError, Exception):
