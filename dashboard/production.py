@@ -629,7 +629,8 @@ def get_trabajos_output():
     """Lee trabajos completados desde la planilla OUTPUT"""
     if sheets_service:
         try:
-            output_sheet = sheets_service._get_output_sheet()
+            # Abrir sheet directamente sin caché para siempre obtener datos frescos
+            output_sheet = sheets_service.client.open_by_key(sheets_service.output_sheet_id)
             if output_sheet:
                 worksheet = output_sheet.get_worksheet(0)
                 all_values = worksheet.get_all_values()
