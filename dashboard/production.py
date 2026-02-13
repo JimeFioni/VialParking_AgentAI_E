@@ -1988,10 +1988,27 @@ elif modo == "📋 Órdenes de Trabajo":
                 # Tabla de trabajos
                 df_trabajos = pd.DataFrame(trabajos_filtrados if trabajos_filtrados else trabajos)
                 
-                # Mostrar en orden descendente (más recientes primero)
-                df_display = df_trabajos[['fecha', 'numero', 'gasoducto', 'ubicacion', 'tipo']].sort_values(
-                    'fecha', ascending=False
+                # Convertir fecha string a datetime para ordenamiento correcto
+                # Formato: DD/MM/YYYY
+                try:
+                    df_trabajos['fecha_dt'] = pd.to_datetime(
+                        df_trabajos['fecha'], 
+                        format='%d/%m/%Y',
+                        errors='coerce'  # Convierte valores inválidos a NaT
+                    )
+                except:
+                    # Si falla, mantener orden original
+                    df_trabajos['fecha_dt'] = pd.NaT
+                
+                # Ordenar por fecha datetime (más recientes primero)
+                df_trabajos_sorted = df_trabajos.sort_values(
+                    'fecha_dt', 
+                    ascending=False,
+                    na_position='last'  # Fechas inválidas al final
                 )
+                
+                # Preparar DataFrame para mostrar (solo columnas visibles)
+                df_display = df_trabajos_sorted[['fecha', 'numero', 'gasoducto', 'ubicacion', 'tipo']].copy()
                 
                 df_display.columns = ['Fecha', 'Item #', 'Gasoducto/Ramal', 'Ubicación', 'Tipo']
                 
@@ -2007,7 +2024,16 @@ elif modo == "📋 Órdenes de Trabajo":
                     st.markdown("---")
                     st.subheader("🔍 Último Trabajo Registrado")
                     
-                    ultimo = trabajos[-1]
+                    # Obtener el trabajo más reciente por fecha (primero en el DataFrame ordenado)
+                    if not df_trabajos_sorted.empty and pd.notna(df_trabajos_sorted.iloc[0]['fecha_dt']):
+                        # Obtener el trabajo correspondiente de la lista original
+                        ultimo = df_trabajos_sorted.iloc[0].to_dict()
+                        # Asegurarse de tener todos los campos necesarios
+                        if 'fecha_dt' in ultimo:
+                            del ultimo['fecha_dt']  # Remover campo auxiliar
+                    else:
+                        # Fallback: usar el último de la lista original
+                        ultimo = trabajos[-1]
                     
                     col1, col2 = st.columns([2, 1])
                     
