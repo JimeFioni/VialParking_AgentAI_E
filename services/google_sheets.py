@@ -1295,13 +1295,13 @@ class GoogleSheetsService:
     # ===== GESTIÓN DE IMÁGENES ANTES/DESPUÉS =====
     def crear_estructura_carpetas_output(self, numero_item: str) -> Optional[Dict[str, str]]:
         """
-        Crea la estructura de carpetas para almacenar imágenes antes/después.
+        Busca la carpeta existente del item y crea las subcarpetas antes/después dentro de ella.
         
         Estructura:
         - OUTPUT_IMAGENES_FOLDER_ID/
-          - 001/
-            - Antes/
-            - Despues/
+          - 001/ (debe existir previamente)
+            - Antes/ (se crea si no existe)
+            - Despues/ (se crea si no existe)
         
         Args:
             numero_item: Número del item (ej: "1", "25", "145")
@@ -1316,7 +1316,7 @@ class GoogleSheetsService:
             
             folder_name = str(numero_item).zfill(3)  # 001, 002, etc.
             
-            # 1. Crear o buscar carpeta del item
+            # 1. BUSCAR carpeta del item (NO crearla - debe existir previamente)
             query = f"name='{folder_name}' and '{self.output_imagenes_folder_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
             results = self.drive_service.files().list(
                 q=query, 
@@ -1328,21 +1328,12 @@ class GoogleSheetsService:
             
             if folders:
                 item_folder_id = folders[0]['id']
-                print(f"📁 Carpeta {folder_name} ya existe")
+                print(f"✅ Carpeta {folder_name} encontrada en Drive")
             else:
-                # Crear carpeta del item
-                folder_metadata = {
-                    'name': folder_name,
-                    'mimeType': 'application/vnd.google-apps.folder',
-                    'parents': [self.output_imagenes_folder_id]
-                }
-                folder = self.drive_service.files().create(
-                    body=folder_metadata, 
-                    fields='id',
-                    supportsAllDrives=True  # ✨ Soporte Shared Drives
-                ).execute()
-                item_folder_id = folder.get('id')
-                print(f"✅ Carpeta {folder_name} creada")
+                # ❌ Si no existe, retornar error - la carpeta del item debe existir previamente
+                print(f"❌ ERROR: No se encontró la carpeta {folder_name} en Drive")
+                print(f"   La carpeta del item debe existir antes de subir imágenes.")
+                return None
             
             # 2. Crear o buscar subcarpeta "Antes"
             query_antes = f"name='Antes' and '{item_folder_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
