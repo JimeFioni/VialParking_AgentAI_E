@@ -649,9 +649,27 @@ def get_trabajos_output():
                     num_item = str(row_extended[5]).strip() if row_extended[5] else ""
                     
                     if num_item:
+                        # Normalizar fecha a formato DD/MM/YYYY para ordenamiento correcto
+                        fecha_raw = str(row_extended[3]) if len(row_extended) > 3 and row_extended[3] else ""
+                        fecha_normalizada = ""
+                        if fecha_raw:
+                            try:
+                                # Intentar parsear diferentes formatos comunes
+                                for fmt in ['%d/%m/%Y', '%-d/%-m/%Y', '%d-%m-%Y', '%-d-%-m-%Y']:
+                                    try:
+                                        dt = datetime.strptime(fecha_raw, fmt)
+                                        fecha_normalizada = dt.strftime('%d/%m/%Y')  # Formato con ceros: DD/MM/YYYY
+                                        break
+                                    except:
+                                        continue
+                                if not fecha_normalizada:
+                                    fecha_normalizada = fecha_raw  # Mantener original si no se pudo parsear
+                            except:
+                                fecha_normalizada = fecha_raw
+                        
                         trabajo = {
                             'fila': i,
-                            'fecha': str(row_extended[3]) if len(row_extended) > 3 and row_extended[3] else "",
+                            'fecha': fecha_normalizada,
                             'numero': num_item,
                             'item': num_item,
                             'gasoducto': str(row_extended[6]) if len(row_extended) > 6 and row_extended[6] else "",
@@ -1919,7 +1937,7 @@ elif modo == "📋 Órdenes de Trabajo":
                     st.metric("📊 Total Trabajos", len(trabajos))
                 
                 with col2:
-                    trabajos_hoy = [t for t in trabajos if datetime.now().strftime("%-d/%-m/%Y") in t['fecha']]
+                    trabajos_hoy = [t for t in trabajos if datetime.now().strftime("%d/%m/%Y") in t['fecha']]
                     st.metric("📅 Hoy", len(trabajos_hoy))
                 
                 with col3:

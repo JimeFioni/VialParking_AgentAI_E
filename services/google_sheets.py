@@ -180,10 +180,17 @@ class GoogleSheetsService:
                             with open(token_path, 'wb') as token:
                                 pickle.dump(creds, token)
                             print("✅ Token renovado exitosamente")
+                            if hasattr(creds, 'expiry'):
+                                print(f"📅 Nuevo token válido hasta: {creds.expiry}")
                         except Exception as refresh_error:
                             print(f"❌ Error al renovar token: {refresh_error}")
-                            print("   Necesitas ejecutar: python setup_oauth_drive.py")
+                            print("   Refresh token expirado o revocado")
+                            print("   Ejecuta: python setup_oauth_drive.py")
                             return None
+                    elif creds and not creds.valid and not creds.refresh_token:
+                        print("❌ Token sin refresh_token. Necesitas re-autenticar")
+                        print("   Ejecuta: python setup_oauth_drive.py")
+                        return None
                 else:
                     print(f"❌ Archivo {token_path} NO encontrado")
                     print("   📝 Para desarrollo local: python setup_oauth_drive.py")
@@ -995,8 +1002,8 @@ class GoogleSheetsService:
             worksheet = output_sheet.get_worksheet(0)
             
             # Preparar nueva fila con datos del INPUT
-            # Formato fecha: D/M/YYYY sin ceros (ejemplo: 4/2/2026, 10/2/2026)
-            fecha_ejecucion = datetime.now().strftime("%-d/%-m/%Y")
+            # Formato fecha: DD/MM/YYYY con ceros (ejemplo: 04/02/2026, 10/02/2026) para ordenamiento correcto
+            fecha_ejecucion = datetime.now().strftime("%d/%m/%Y")
             
             # Preparar valor de distancia (puede no existir si se buscó por número directamente)
             distancia_valor = cartel_info.get('distancia_km', '')
