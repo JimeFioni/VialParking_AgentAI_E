@@ -626,7 +626,7 @@ def get_items_en_proceso_cached():
 
 @st.cache_data(ttl=3, show_spinner="🔄 Actualizando datos...")  # Cache de 3 segundos
 def get_trabajos_output():
-    """Lee trabajos completados desde la planilla OUTPUT"""
+    """Lee trabajos completados desde la planilla OUTPUT (pestaña: Insta Señalizaciones Anexo 2)"""
     if sheets_service:
         try:
             # Abrir sheet directamente sin caché para siempre obtener datos frescos
