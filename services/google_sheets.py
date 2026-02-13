@@ -1109,12 +1109,34 @@ class GoogleSheetsService:
                 
             print(f"   ✓ Observaciones: Instalación EJECUTADA.-")
             
+            # Registrar log en pestaña LOG_Streamlit
+            self.registrar_log_streamlit(
+                usuario="Dashboard Streamlit",
+                accion="registro_trabajo",
+                numero_item=str(numero_item),
+                detalles=f"Gasoducto: {cartel_info.get('gasoducto_ramal', '')} | Ubicación: {cartel_info.get('ubicacion', '')} | Tipo: {cartel_info.get('tipo_cartel', '')}",
+                resultado="✅ Éxito",
+                fotos_antes=3,
+                fotos_despues=3
+            )
+            
             return True
             
         except Exception as e:
             print(f"❌ Error al registrar trabajo en planilla OUTPUT: {e}")
             import traceback
             traceback.print_exc()
+            
+            # Registrar error en log
+            numero_item = datos.get('numero_item', datos.get('cartel_info', {}).get('numero', 'N/A'))
+            self.registrar_log_streamlit(
+                usuario="Dashboard Streamlit",
+                accion="registro_trabajo",
+                numero_item=str(numero_item),
+                detalles=f"Error: {str(e)[:200]}",
+                resultado="❌ Error"
+            )
+            
             return False
     
     def actualizar_enlace_carpeta_item(self, numero_item: str) -> bool:
@@ -1737,6 +1759,91 @@ class GoogleSheetsService:
             
         except Exception as e:
             print(f"Error al registrar log WhatsApp: {e}")
+            import traceback
+            traceback.print_exc()
+            return False    
+    def registrar_log_streamlit(
+        self,
+        usuario: str,
+        accion: str,
+        numero_item: str = "",
+        detalles: str = "",
+        resultado: str = "",
+        fotos_antes: int = 0,
+        fotos_despues: int = 0
+    ) -> bool:
+        """
+        Registra cada operación manual desde el dashboard de Streamlit.
+        
+        Args:
+            usuario: Identificador del usuario (IP, nombre, etc.)
+            accion: Tipo de acción (registro_trabajo, consulta, modificación, etc.)
+            numero_item: Número de item relacionado
+            detalles: Detalles adicionales de la operación
+            resultado: Resultado de la operación (éxito, error, etc.)
+            fotos_antes: Cantidad de fotos ANTES cargadas
+            fotos_despues: Cantidad de fotos DESPUÉS cargadas
+            
+        Returns:
+            True si se registró correctamente
+        """
+        try:
+            log_sheet = self._get_whatsapp_log_sheet()  # Usa la misma planilla LOG
+            if not log_sheet:
+                print("No se configuró hoja LOG")
+                return False
+            
+            # Buscar o crear pestaña LOG_Streamlit
+            try:
+                worksheet = log_sheet.worksheet("LOG_Streamlit")
+            except:
+                # Crear pestaña si no existe
+                worksheet = log_sheet.add_worksheet(
+                    title="LOG_Streamlit",
+                    rows=1000,
+                    cols=10
+                )
+                # Agregar encabezados
+                headers = [
+                    "Timestamp",
+                    "Fecha",
+                    "Hora",
+                    "Usuario",
+                    "Acción",
+                    "Item",
+                    "Detalles",
+                    "Fotos ANTES",
+                    "Fotos DESPUÉS",
+                    "Resultado"
+                ]
+                worksheet.append_row(headers)
+            
+            # Preparar datos
+            now = datetime.now()
+            timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
+            fecha = now.strftime("%d/%m/%Y")
+            hora = now.strftime("%H:%M:%S")
+            
+            fila = [
+                timestamp,
+                fecha,
+                hora,
+                usuario,
+                accion,
+                str(numero_item) if numero_item else "",
+                detalles[:500] if detalles else "",
+                str(fotos_antes) if fotos_antes else "0",
+                str(fotos_despues) if fotos_despues else "0",
+                resultado[:200] if resultado else ""
+            ]
+            
+            # Agregar fila
+            worksheet.append_row(fila)
+            print(f"📋 Log Streamlit registrado: {usuario} - {accion} - Item #{numero_item}")
+            return True
+            
+        except Exception as e:
+            print(f"⚠️ Error al registrar log Streamlit: {e}")
             import traceback
             traceback.print_exc()
             return False
