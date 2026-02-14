@@ -1298,10 +1298,10 @@ class GoogleSheetsService:
         Crea la estructura de carpetas para almacenar imágenes antes/después.
         
         Estructura:
-        - OUTPUT_IMAGENES_FOLDER_ID/
-          - 001/
-            - Antes/
-            - Despues/
+        - IMAGENES_CARTELES_FOLDER_ID/ (carpeta con items existentes)
+          - 001/ (carpeta del item - DEBE YA EXISTIR con imágenes de muestra)
+            - Antes/ (se crea si no existe)
+            - Despues/ (se crea si no existe)
         
         Args:
             numero_item: Número del item (ej: "1", "25", "145")
@@ -1310,38 +1310,70 @@ class GoogleSheetsService:
             Dict con IDs de carpetas {'item': 'id', 'antes': 'id', 'despues': 'id'} o None
         """
         try:
-            if not self.output_imagenes_folder_id:
-                print("No se ha configurado OUTPUT_IMAGENES_FOLDER_ID")
+            # Usar la carpeta de imágenes de input (donde están las 287 carpetas de items)
+            base_folder_id = self.imagenes_carteles_folder_id or self.output_imagenes_folder_id
+            
+            if not base_folder_id:
+                print("❌ No se ha configurado IMAGENES_CARTELES_FOLDER_ID ni OUTPUT_IMAGENES_FOLDER_ID")
                 return None
             
-            folder_name = str(numero_item).zfill(3)  # 001, 002, etc.
+            # Normalizar el número de ítem para buscar la carpeta existente
+            import re
+            match = re.search(r'\d+', str(numero_item))
+            if not match:
+                print(f"❌ Número de item inválido: {numero_item}")
+                return None
             
-            # 1. Crear o buscar carpeta del item
-            query = f"name='{folder_name}' and '{self.output_imagenes_folder_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
+            item_num = int(match.group())
+            folder_name = f"{item_num:03d}"  # 001, 002, etc.
+            
+            print(f"🔍 Buscando carpeta del item {folder_name} en Drive...")
+            
+            # 1. BUSCAR carpeta del item existente (NO crear una nueva)
+            # Buscar entre TODAS las carpetas, no solo por nombre exacto
+            query = f"'{base_folder_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
             results = self.drive_service.files().list(
                 q=query, 
                 fields='files(id, name)',
-                supportsAllDrives=True,  # ✨ Soporte Shared Drives
-                includeItemsFromAllDrives=True  # ✨ Incluir items de Shared Drives
+                pageSize=1000,  # Obtener todas las carpetas
+                supportsAllDrives=True,
+                includeItemsFromAllDrives=True
             ).execute()
-            folders = results.get('files', [])
+            all_folders = results.get('files', [])
             
-            if folders:
-                item_folder_id = folders[0]['id']
-                print(f"📁 Carpeta {folder_name} ya existe")
-            else:
-                # Crear carpeta del item
+            # Filtrar carpetas que contengan el número del item
+            item_folder_id = None
+            matched_folder_name = None
+            
+            for folder in all_folders:
+                folder_numbers = re.findall(r'\d+', folder['name'])
+                for num_str in folder_numbers:
+                    if int(num_str) == item_num:
+                        item_folder_id = folder['id']
+                        matched_folder_name = folder['name']
+                        print(f"✅ Carpeta del item encontrada: {matched_folder_name} (ID: {item_folder_id})")
+                        break
+                if item_folder_id:
+                    break
+            
+            if not item_folder_id:
+                print(f"❌ No se encontró carpeta existente para item {item_num}")
+                print(f"📂 Carpetas disponibles: {[f['name'] for f in all_folders[:20]]}")
+                
+                # Como fallback, crear una nueva carpeta
+                print(f"📁 Creando nueva carpeta: {folder_name}")
                 folder_metadata = {
                     'name': folder_name,
                     'mimeType': 'application/vnd.google-apps.folder',
-                    'parents': [self.output_imagenes_folder_id]
+                    'parents': [base_folder_id]
                 }
                 folder = self.drive_service.files().create(
                     body=folder_metadata, 
                     fields='id',
-                    supportsAllDrives=True  # ✨ Soporte Shared Drives
+                    supportsAllDrives=True
                 ).execute()
                 item_folder_id = folder.get('id')
+                matched_folder_name = folder_name
                 print(f"✅ Carpeta {folder_name} creada")
             
             # 2. Crear o buscar subcarpeta "Antes"
@@ -1555,17 +1587,22 @@ class GoogleSheetsService:
             item_formatted = f"{item_num:03d}"
             
             print(f"🔎 Buscando carpeta exacta para ítem: {item_formatted}")
+            print(f"📂 Carpeta base configurada: {self.imagenes_carteles_folder_id}")
             
             # Buscar carpeta con el nombre del ítem dentro de la carpeta principal
             # Primero buscar todas las carpetas que contengan el número
             query = f"'{self.imagenes_carteles_folder_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
             
+            print(f"🔍 Ejecutando búsqueda en Drive...")
             results = self.drive_service.files().list(
                 q=query,
                 spaces='drive',
                 fields='files(id, name)',
                 pageSize=1000,  # Aumentar límite para obtener todas las carpetas
-                orderBy='name'  # Ordenar por nombre para obtener carpetas numéricas primero
+                orderBy='name',  # Ordenar por nombre para obtener carpetas numéricas primero
+                supportsAllDrives=True,  # 🔥 Soporte para Shared Drives
+                includeItemsFromAllDrives=True,  # 🔥 Incluir items de Shared Drives
+                corpora='allDrives'  # 🔥 Buscar en todos los drives
             ).execute()
             
             all_folders = results.get('files', [])
@@ -1587,7 +1624,16 @@ class GoogleSheetsService:
             
             if not folders:
                 print(f"❌ No se encontró carpeta para ítem {item_formatted}")
-                print(f"📂 Carpetas disponibles: {[f['name'] for f in all_folders[:10]]}")
+                print(f"📂 Total de carpetas en Drive: {len(all_folders)}")
+                if len(all_folders) > 0:
+                    print(f"📋 Primeras 20 carpetas disponibles:")
+                    for idx, folder in enumerate(all_folders[:20], 1):
+                        print(f"   {idx}. {folder['name']} (ID: {folder['id']})")
+                else:
+                    print(f"⚠️ No se encontraron carpetas en la carpeta base. Verifica:")
+                    print(f"   - Que exista la carpeta: {self.imagenes_carteles_folder_id}")
+                    print(f"   - Que las credenciales tengan acceso")
+                    print(f"   - Que la carpeta tenga subcarpetas")
                 return []
             
             # Usar la primera carpeta encontrada
@@ -1610,7 +1656,10 @@ class GoogleSheetsService:
                     q=query_files,
                     spaces='drive',
                     fields='files(id, name, mimeType, webViewLink, webContentLink)',
-                    pageSize=500  # Aumentar límite para fotos en carpeta
+                    pageSize=500,  # Aumentar límite para fotos en carpeta
+                    supportsAllDrives=True,  # 🔥 Soporte para Shared Drives
+                    includeItemsFromAllDrives=True,  # 🔥 Incluir items de Shared Drives
+                    corpora='allDrives'  # 🔥 Buscar en todos los drives
                 ).execute()
                 
                 files = results_files.get('files', [])
@@ -1624,7 +1673,10 @@ class GoogleSheetsService:
                     q=query_folders,
                     spaces='drive',
                     fields='files(id, name)',
-                    pageSize=500  # Aumentar límite para subcarpetas
+                    pageSize=500,  # Aumentar límite para subcarpetas
+                    supportsAllDrives=True,  # 🔥 Soporte para Shared Drives
+                    includeItemsFromAllDrives=True,  # 🔥 Incluir items de Shared Drives
+                    corpora='allDrives'  # 🔥 Buscar en todos los drives
                 ).execute()
                 
                 subfolders = results_folders.get('files', [])

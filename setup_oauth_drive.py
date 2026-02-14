@@ -9,7 +9,9 @@ import pickle
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 
-SCOPES = ['https://www.googleapis.com/auth/drive.file']
+# SCOPE COMPLETO para acceder a TODAS las carpetas y archivos de Drive
+# Necesario para leer carpetas existentes con imágenes de muestra (001-287)
+SCOPES = ['https://www.googleapis.com/auth/drive']
 
 def setup_oauth():
     """Configura OAuth para Drive y guarda el token"""
