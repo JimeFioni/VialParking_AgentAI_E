@@ -1061,7 +1061,7 @@ class GoogleSheetsService:
                 cartel_info.get('coordenadas', ''),  # J: Georreferencias (Ubicación Señalización)
                 distancia_str,  # K: Dist. LM (número con coma o "-")
                 cartel_info.get('alto', '-'),  # L: Dist. Al eje (usar alto del INPUT)
-                'Instanción EJECUTADA.-',  # M: Observaciones (con typo igual que planilla)
+                datos.get('observacion', 'Instanción EJECUTADA.-'),  # M: Observaciones (usar observación personalizada o por defecto)
                 '',  # N: vacío
                 cartel_info.get('tipo_raw', ''),  # O: Tipo - valor completo del INPUT (ej: "D\ncañeria")
                 # TRABAJO 10 - Colocación o remplazo de cartel con mantenimiento de Poste
@@ -1114,7 +1114,8 @@ class GoogleSheetsService:
             if enlace_antes_formula or enlace_despues_formula:
                 print(f"   ✓ Enlaces fotos: Fotos {str(numero_item).zfill(3)}-001 al 003 y -004 al 006")
                 
-            print(f"   ✓ Observaciones: Instalación EJECUTADA.-")
+            observacion_final = datos.get('observacion', 'Instalación EJECUTADA.-')
+            print(f"   ✓ Observaciones: {observacion_final}")
             
             # Registrar log en pestaña LOG_Streamlit
             self.registrar_log_streamlit(

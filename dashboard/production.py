@@ -536,7 +536,11 @@ def get_ordenes_cached():
 
 @st.cache_data(ttl=180)
 def get_items_ejecutados_cached():
-    """Obtiene números de items ejecutados desde OUTPUT con sus fechas"""
+    """
+    Obtiene números de items ejecutados desde OUTPUT con sus fechas.
+    Solo considera EJECUTADOS aquellos con observación 'Instalación EJECUTADA.-'
+    Los items con otras observaciones se consideran EN PROCESO.
+    """
     if sheets_service:
         try:
             output_sheet = sheets_service._get_output_sheet()
@@ -547,13 +551,19 @@ def get_items_ejecutados_cached():
                 items_ejecutados = {}  # Diccionario: {num_item: fecha}
                 # Procesar filas con datos (después de fila 10)
                 for i, row in enumerate(all_values[10:], start=11):
-                    if len(row) > 5:
+                    if len(row) > 12:  # Asegurar que llega hasta columna M
                         # Columna F (índice 5): N° del item
                         num_item = row[5].strip() if len(row) > 5 else ""
                         # Columna D (índice 3): Fecha Ejecución
                         fecha = row[3].strip() if len(row) > 3 else "Sin fecha"
+                        # Columna M (índice 12): Observaciones
+                        observacion = row[12].strip() if len(row) > 12 else ""
+                        
                         if num_item:
-                            items_ejecutados[num_item] = fecha
+                            # Solo considerar como EJECUTADO si tiene la observación estándar
+                            # Cualquier otra observación significa que está EN PROCESO (no completado)
+                            if observacion and "EJECUTADA" in observacion.upper():
+                                items_ejecutados[num_item] = fecha
                 
                 return items_ejecutados
         except Exception as e:
@@ -563,13 +573,43 @@ def get_items_ejecutados_cached():
 
 @st.cache_data(ttl=600)  # Cache de 10 minutos para reducir llamadas a Drive
 def get_items_en_proceso_cached():
-    """Obtiene números de items en proceso (tienen Antes pero no están en OUTPUT)"""
+    """
+    Obtiene números de items en proceso.
+    En proceso significa:
+    1. Tienen carpeta Antes en Drive (fotos ANTES tomadas), O
+    2. Están en OUTPUT pero con observación personalizada (no completados)
+    """
     if sheets_service:
         try:
-            # Obtener carpeta principal de imágenes OUTPUT
+            items_en_proceso = set()
+            
+            # PARTE 1: Items con observaciones personalizadas en OUTPUT (no completados)
+            try:
+                output_sheet = sheets_service._get_output_sheet()
+                if output_sheet:
+                    worksheet = output_sheet.get_worksheet(0)
+                    all_values = worksheet.get_all_values()
+                    
+                    # Procesar filas con datos (después de fila 10)
+                    for i, row in enumerate(all_values[10:], start=11):
+                        if len(row) > 12:
+                            # Columna F (índice 5): N° del item
+                            num_item = row[5].strip() if len(row) > 5 else ""
+                            # Columna M (índice 12): Observaciones
+                            observacion = row[12].strip() if len(row) > 12 else ""
+                            
+                            if num_item and observacion:
+                                # Si la observación NO contiene "EJECUTADA", está en proceso
+                                if "EJECUTADA" not in observacion.upper():
+                                    items_en_proceso.add(num_item)
+            except Exception as e:
+                # Si falla la lectura de OUTPUT, continuar con carpetas Drive
+                pass
+            
+            # PARTE 2: Items con carpeta Antes en Drive
             output_folder_id = os.getenv("OUTPUT_IMAGENES_FOLDER_ID")
             if not output_folder_id:
-                return set()
+                return items_en_proceso
             
             # Buscar todas las carpetas de items en Drive
             query = f"'{output_folder_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
@@ -582,7 +622,6 @@ def get_items_en_proceso_cached():
             ).execute()
             
             all_folders = results.get('files', [])
-            items_en_proceso = set()
             
             # Limitar a 50 carpetas para evitar exceder límites de API
             import re
