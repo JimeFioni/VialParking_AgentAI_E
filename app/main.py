@@ -100,7 +100,7 @@ def crear_enlace_google_maps(coordenadas: str) -> str:
     Crea un enlace de Google Maps a partir de coordenadas.
     
     Args:
-        coordenadas: String con formato "lat, lon" o "lat,lon"
+        coordenadas: String con formato "lat, lon", "lat,lon" o "lat lon"
     
     Returns:
         URL de Google Maps o None si las coordenadas son inválidas
@@ -109,9 +109,15 @@ def crear_enlace_google_maps(coordenadas: str) -> str:
         return None
     
     try:
-        # Limpiar y separar coordenadas
-        coords_limpio = coordenadas.replace(' ', '').strip()
-        partes = coords_limpio.split(',')
+        # Limpiar coordenadas
+        coords_limpio = coordenadas.strip()
+        
+        # Intentar separar por coma primero
+        if ',' in coords_limpio:
+            partes = coords_limpio.split(',')
+        else:
+            # Si no hay coma, separar por espacios
+            partes = coords_limpio.split()
         
         if len(partes) >= 2:
             lat = partes[0].strip()
