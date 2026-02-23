@@ -470,6 +470,44 @@ async def webhook_whatsapp(
                 item_number = numeros[0]
                 print(f"📊 Buscando ítem: {item_number}")
                 
+                # VERIFICAR SI HAY UN ESTADO PREVIO CON OBSERVACIÓN REGISTRADA
+                estado_previo = conversation_states.get(whatsapp_number, {})
+                if (estado_previo.get('estado') == 'observado' and 
+                    str(estado_previo.get('numero_item')) == item_number and
+                    'observacion_registrada' in estado_previo):
+                    
+                    # El usuario está completando un trabajo que previamente registró como observación
+                    print(f"✅ Detectado completar trabajo con observación previa - Item {item_number}")
+                    
+                    # Verificar si ya tiene fotos ANTES
+                    if estado_previo.get('urls_imagenes_antes'):
+                        # Ya tiene fotos ANTES, ir directo a DESPUÉS
+                        estado_previo['estado'] = 'esperando_imagenes_despues'
+                        conversation_states[whatsapp_number] = estado_previo
+                        
+                        whatsapp_service.enviar_mensaje(
+                            whatsapp_number,
+                            f"✅ *COMPLETAR TRABAJO - ITEM #{item_number}*\n\n"
+                            f"📸 *FOTOS DESPUÉS DEL TRABAJO*\n\n"
+                            f"Envía 3 fotos del estado DESPUÉS de finalizar el cartel #{item_number}.\n\n"
+                            f"📷📷📷 Envía las 3 imágenes ahora."
+                        )
+                    else:
+                        # No tiene fotos ANTES, solicitarlas primero
+                        estado_previo['estado'] = 'esperando_imagenes_antes'
+                        estado_previo['imagenes_antes'] = []
+                        conversation_states[whatsapp_number] = estado_previo
+                        
+                        whatsapp_service.enviar_mensaje(
+                            whatsapp_number,
+                            f"✅ *COMPLETAR TRABAJO - ITEM #{item_number}*\n\n"
+                            f"📸 *ANTES DE FINALIZAR EL TRABAJO*\n\n"
+                            f"Envía 3 fotos del estado ANTES del cartel #{item_number}.\n\n"
+                            f"📷📷📷 Envía las 3 imágenes ahora."
+                        )
+                    
+                    return "OK"
+                
                 # Buscar información en la planilla
                 cartel = sheets_service.buscar_cartel_por_item(item_number)
                 
@@ -1144,8 +1182,10 @@ async def webhook_whatsapp(
                 respuesta_bot=f"OUTPUT: {'SÍ' if registro_exitoso else 'NO'} | Obs: {observacion_texto[:50]}"
             )
             
-            # Limpiar estado
-            del conversation_states[whatsapp_number]
+            # Mantener estado para permitir completar el trabajo después
+            estado_actual['estado'] = 'observado'
+            estado_actual['observacion_registrada'] = observacion_texto
+            conversation_states[whatsapp_number] = estado_actual
             
             return "OK"
         
