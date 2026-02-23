@@ -1081,26 +1081,37 @@ class GoogleSheetsService:
                 enlace_despues_formula  # AA: FOTOS DESPUÉS
             ]
             
-            # Encontrar la próxima fila disponible
-            # La planilla tiene headers en filas 9-10, datos empiezan en fila 11
-            # Buscar la última fila con datos en columna F (N° de item)
-            col_f_values = worksheet.col_values(6)  # Columna F (índice 6)
+            # Verificar si ya existe un registro para este item (por ejemplo, si se registró una observación antes)
+            col_f_values = worksheet.col_values(6)  # Columna F (N° de item)
+            fila_existente = None
             
-            # Encontrar última fila con datos (después de fila 10)
-            ultima_fila_con_datos = 10  # Mínimo es fila 10 (headers)
             for i, valor in enumerate(col_f_values, start=1):
-                if i > 10 and valor.strip():  # Después de headers y con valor
-                    ultima_fila_con_datos = i
+                if i > 10 and str(valor).strip() == str(numero_item):
+                    fila_existente = i
+                    print(f"📝 Item {numero_item} ya existe en fila {i}, actualizando registro...")
+                    break
             
-            proxima_fila = ultima_fila_con_datos + 1
-            
-            print(f"📝 Escribiendo en fila {proxima_fila} de la planilla OUTPUT")
+            if fila_existente:
+                # Actualizar registro existente
+                proxima_fila = fila_existente
+            else:
+                # Encontrar la próxima fila disponible para nuevo registro
+                # La planilla tiene headers en filas 9-10, datos empiezan en fila 11
+                # Buscar la última fila con datos en columna F (N° de item)
+                ultima_fila_con_datos = 10  # Mínimo es fila 10 (headers)
+                for i, valor in enumerate(col_f_values, start=1):
+                    if i > 10 and valor.strip():  # Después de headers y con valor
+                        ultima_fila_con_datos = i
+                
+                proxima_fila = ultima_fila_con_datos + 1
+                print(f"📝 Creando nuevo registro en fila {proxima_fila} de la planilla OUTPUT")
             
             # Escribir en la fila específica usando update (hasta columna AA para incluir FOTOS ANTES y DESPUÉS)
             rango = f"A{proxima_fila}:AA{proxima_fila}"
             worksheet.update(rango, [nueva_fila], value_input_option='USER_ENTERED')
             
-            print(f"✅ Trabajo registrado en planilla OUTPUT: Item {numero_item}")
+            accion_realizada = "actualizado" if fila_existente else "registrado"
+            print(f"✅ Trabajo {accion_realizada} en planilla OUTPUT: Item {numero_item}")
             print(f"   ✓ Fecha Ejecucion: {fecha_ejecucion}")
             print(f"   ✓ Gasoducto/Ramal: {cartel_info.get('gasoducto_ramal', '')}")
             print(f"   ✓ Ubicación: {cartel_info.get('ubicacion', '')}")
