@@ -376,6 +376,17 @@ async def webhook_whatsapp(
             numeros = re.findall(r'\d+', Body)
             print(f"📊 Números encontrados: {numeros}")
             
+            # DEBUG: Ver estado actual
+            print(f"🔵 DEBUG: Estado actual en conversation_states:")
+            if whatsapp_number in conversation_states:
+                estado_debug = conversation_states[whatsapp_number]
+                print(f"   - Existe estado: SÍ")
+                print(f"   - estado: {estado_debug.get('estado')}")
+                print(f"   - numero_item: {estado_debug.get('numero_item')}")
+                print(f"   - observacion_registrada: {'observacion_registrada' in estado_debug}")
+            else:
+                print(f"   - Existe estado: NO")
+            
             if numeros:
                 # Modo múltiple: si hay más de un número
                 if len(numeros) > 1:
@@ -472,6 +483,13 @@ async def webhook_whatsapp(
                 
                 # VERIFICAR SI HAY UN ESTADO PREVIO CON OBSERVACIÓN REGISTRADA
                 estado_previo = conversation_states.get(whatsapp_number, {})
+                print(f"🔵 DEBUG: Verificando observación previa:")
+                print(f"   - estado_previo.get('estado'): {estado_previo.get('estado')}")
+                print(f"   - str(estado_previo.get('numero_item')): {str(estado_previo.get('numero_item'))}")
+                print(f"   - item_number: {item_number}")
+                print(f"   - 'observacion_registrada' in estado_previo: {'observacion_registrada' in estado_previo}")
+                print(f"   - ¿Cumple todas las condiciones? {estado_previo.get('estado') == 'observado' and str(estado_previo.get('numero_item')) == item_number and 'observacion_registrada' in estado_previo}")
+                
                 if (estado_previo.get('estado') == 'observado' and 
                     str(estado_previo.get('numero_item')) == item_number and
                     'observacion_registrada' in estado_previo):
@@ -1186,6 +1204,12 @@ async def webhook_whatsapp(
             estado_actual['estado'] = 'observado'
             estado_actual['observacion_registrada'] = observacion_texto
             conversation_states[whatsapp_number] = estado_actual
+            
+            print(f"🔵 DEBUG: Estado guardado después de observación:")
+            print(f"   - numero_item: {numero_item}")
+            print(f"   - estado: {estado_actual['estado']}")
+            print(f"   - observacion_registrada: {observacion_texto}")
+            print(f"   - Todas las claves: {estado_actual.keys()}")
             
             return "OK"
         
