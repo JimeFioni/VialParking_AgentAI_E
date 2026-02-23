@@ -1061,7 +1061,7 @@ class GoogleSheetsService:
                 cartel_info.get('coordenadas', ''),  # J: Georreferencias (Ubicación Señalización)
                 distancia_str,  # K: Dist. LM (número con coma o "-")
                 cartel_info.get('alto', '-'),  # L: Dist. Al eje (usar alto del INPUT)
-                datos.get('observacion', 'Instanción EJECUTADA.-'),  # M: Observaciones (usar observación personalizada o por defecto)
+                datos.get('observacion', 'Instalación EJECUTADA.-'),  # M: Observaciones (usar observación personalizada o por defecto)
                 '',  # N: vacío
                 cartel_info.get('tipo_raw', ''),  # O: Tipo - valor completo del INPUT (ej: "D\ncañeria")
                 # TRABAJO 10 - Colocación o remplazo de cartel con mantenimiento de Poste
