@@ -9,9 +9,14 @@ import pickle
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 
-# SCOPE COMPLETO para acceder a TODAS las carpetas y archivos de Drive
-# Necesario para leer carpetas existentes con imágenes de muestra (001-287)
-SCOPES = ['https://www.googleapis.com/auth/drive']
+# SCOPE COMPLETO para acceder a Drive Y Google Sheets
+# Necesario para:
+# - Leer/escribir en carpetas de Drive (imágenes de muestra 001-287)
+# - Leer/escribir en Google Sheets (planillas de acciones, database, etc.)
+SCOPES = [
+    'https://www.googleapis.com/auth/drive',
+    'https://www.googleapis.com/auth/spreadsheets'
+]
 
 def setup_oauth():
     """Configura OAuth para Drive y guarda el token"""

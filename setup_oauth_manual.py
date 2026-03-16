@@ -8,7 +8,11 @@ import os
 import pickle
 from google_auth_oauthlib.flow import InstalledAppFlow
 
-SCOPES = ['https://www.googleapis.com/auth/drive']
+# Scopes necesarios para Drive Y Google Sheets
+SCOPES = [
+    'https://www.googleapis.com/auth/drive',
+    'https://www.googleapis.com/auth/spreadsheets'
+]
 
 def setup_oauth_manual():
     """Configura OAuth para Drive usando flujo manual (sin SSL)"""
