@@ -25,7 +25,13 @@ class GoogleSheetsService:
         oauth_creds = self._load_oauth_credentials()
         
         if oauth_creds:
-            print("✅ Usando OAuth para Sheets y Drive (permisos de usuario)")
+            print("=" * 70)
+            print("✅ USANDO OAUTH PARA GOOGLE SHEETS Y DRIVE")
+            print("=" * 70)
+            print(f"📋 Scopes: {oauth_creds.scopes}")
+            print(f"📅 Válido hasta: {oauth_creds.expiry if hasattr(oauth_creds, 'expiry') else 'N/A'}")
+            print(f"🔄 Refresh token: {'Sí' if hasattr(oauth_creds, 'refresh_token') and oauth_creds.refresh_token else 'No'}")
+            print("=" * 70)
             self.client = gspread.authorize(oauth_creds)
             self.drive_service = build('drive', 'v3', credentials=oauth_creds)
         else:
@@ -605,7 +611,17 @@ class GoogleSheetsService:
     def _get_output_sheet(self):
         """Obtiene la hoja OUTPUT para registrar trabajos completados."""
         if self._output_sheet is None and self.output_sheet_id:
-            self._output_sheet = self.client.open_by_key(self.output_sheet_id)
+            try:
+                print(f"🔍 Intentando abrir planilla OUTPUT: {self.output_sheet_id}")
+                self._output_sheet = self.client.open_by_key(self.output_sheet_id)
+                print(f"✅ Planilla OUTPUT abierta: {self._output_sheet.title}")
+            except Exception as e:
+                print(f"❌ Error al abrir planilla OUTPUT: {e}")
+                print(f"   ID intentado: {self.output_sheet_id}")
+                print(f"   Tipo de credencial: OAuth" if hasattr(self.client, 'auth') else "   Tipo de credencial: Service Account")
+                import traceback
+                traceback.print_exc()
+                return None
         return self._output_sheet
     
     def obtener_carteles_ecogas(self) -> List[Dict[str, Any]]:
@@ -1088,7 +1104,20 @@ class GoogleSheetsService:
             
             # Escribir en la fila específica usando update (hasta columna AA para incluir FOTOS ANTES y DESPUÉS)
             rango = f"A{proxima_fila}:AA{proxima_fila}"
-            worksheet.update(rango, [nueva_fila], value_input_option='USER_ENTERED')
+            print(f"📝 Intentando escribir en rango: {rango}")
+            print(f"   Worksheet: {worksheet.title}")
+            print(f"   Datos a escribir: {len(nueva_fila)} columnas")
+            print(f"   Item: {numero_item}, Fecha: {fecha_ejecucion}")
+            
+            try:
+                resultado = worksheet.update(rango, [nueva_fila], value_input_option='USER_ENTERED')
+                print(f"✅ Update ejecutado exitosamente")
+                print(f"   Respuesta: {resultado}")
+            except Exception as update_error:
+                print(f"❌ Error en worksheet.update(): {update_error}")
+                import traceback
+                traceback.print_exc()
+                raise
             
             accion_realizada = "actualizado" if fila_existente else "registrado"
             print(f"✅ Trabajo {accion_realizada} en planilla OUTPUT: Item {numero_item}")
