@@ -21,69 +21,58 @@ class GoogleSheetsService:
             'https://www.googleapis.com/auth/drive'
         ]
         
-        # Intentar leer credenciales desde Streamlit secrets (producción)
-        creds = None
-        error_msg = None
+        # PRIORIDAD 1: Intentar OAuth (mejor opción - sin límites y permisos del usuario)
+        oauth_creds = self._load_oauth_credentials()
         
-        try:
-            import streamlit as st
-            # Verificar si realmente estamos en un entorno Streamlit con secrets configurados
+        if oauth_creds:
+            print("✅ Usando OAuth para Sheets y Drive (permisos de usuario)")
+            self.client = gspread.authorize(oauth_creds)
+            self.drive_service = build('drive', 'v3', credentials=oauth_creds)
+        else:
+            # FALLBACK: Service Account (requiere permisos explícitos en cada planilla)
+            print("⚠️  OAuth no disponible, usando Service Account")
+            print("   NOTA: La Service Account debe tener permisos de editor en las planillas")
+            
+            creds = None
             try:
-                if hasattr(st, 'secrets') and 'GOOGLE_SHEETS_CREDENTIALS_JSON' in st.secrets:
-                    print("🔍 Intentando cargar credenciales desde Streamlit secrets...")
-                    creds_json = st.secrets['GOOGLE_SHEETS_CREDENTIALS_JSON']
-                    print(f"📄 Tipo de secret: {type(creds_json)}")
-                    
-                    # Si ya es un dict, usarlo directamente
-                    if isinstance(creds_json, dict):
-                        creds_dict = creds_json
-                    else:
-                        # Si es string, parsearlo
-                        creds_dict = json.loads(creds_json)
-                    
-                    creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-                    print("✅ Credenciales cargadas desde Streamlit secrets")
-            except Exception as e:
-                # Puede ser StreamlitSecretNotFoundError o cualquier otro error de secrets
-                print(f"ℹ️  Secrets no disponibles en este entorno: {type(e).__name__}")
-        except ImportError:
-            # No está en Streamlit
-            print("ℹ️  No está en entorno Streamlit")
-        
-        # Si no hay credenciales desde secrets, usar archivo local
-        if creds is None:
-            credentials_path = os.getenv("GOOGLE_SHEETS_CREDENTIALS_PATH", "credentials.json")
-            if not os.path.exists(credentials_path):
-                if error_msg:
-                    raise Exception(
-                        f"No se pudieron cargar credenciales desde secrets: {error_msg}\n"
-                        f"Tampoco existe el archivo local: {credentials_path}"
+                import streamlit as st
+                # Verificar si realmente estamos en un entorno Streamlit con secrets configurados
+                try:
+                    if hasattr(st, 'secrets') and 'GOOGLE_SHEETS_CREDENTIALS_JSON' in st.secrets:
+                        print("🔍 Intentando cargar credenciales desde Streamlit secrets...")
+                        creds_json = st.secrets['GOOGLE_SHEETS_CREDENTIALS_JSON']
+                        print(f"📄 Tipo de secret: {type(creds_json)}")
+                        
+                        # Si ya es un dict, usarlo directamente
+                        if isinstance(creds_json, dict):
+                            creds_dict = creds_json
+                        else:
+                            # Si es string, parsearlo
+                            creds_dict = json.loads(creds_json)
+                        
+                        creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+                        print("✅ Credenciales cargadas desde Streamlit secrets")
+                except Exception as e:
+                    # Puede ser StreamlitSecretNotFoundError o cualquier otro error de secrets
+                    print(f"ℹ️  Secrets no disponibles en este entorno: {type(e).__name__}")
+            except ImportError:
+                # No está en Streamlit
+                print("ℹ️  No está en entorno Streamlit")
+            
+            # Si no hay credenciales desde secrets, usar archivo local
+            if creds is None:
+                credentials_path = os.getenv("GOOGLE_SHEETS_CREDENTIALS_PATH", "credentials.json")
+                if not os.path.exists(credentials_path):
+                    raise FileNotFoundError(
+                        f"No se encontraron credenciales OAuth ni Service Account.\n"
+                        f"SOLUCIÓN:\n"
+                        f"  1. OAuth (recomendado): python setup_oauth_drive.py\n"
+                        f"  2. Service Account: descarga {credentials_path} desde Google Cloud Console"
                     )
-                raise FileNotFoundError(
-                    f"Archivo de credenciales no encontrado: {credentials_path}\n"
-                    "Descarga las credenciales desde Google Cloud Console"
-                )
-            print("✅ Usando credenciales desde archivo local")
-            creds = Credentials.from_service_account_file(credentials_path, scopes=scopes)
-        
-        self.client = gspread.authorize(creds)
-        
-        # IMPORTANTE: OAuth para Drive (evita problemas de cuota con Service Accounts)
-        self.drive_service = self._init_drive_service_oauth()
-        
-        # Si OAuth no está disponible, mostrar warning claro
-        if not self.drive_service:
-            print("\n" + "=" * 70)
-            print("⚠️  ADVERTENCIA CRÍTICA: OAuth no disponible para Drive")
-            print("=" * 70)
-            print("Las Service Accounts NO tienen cuota de almacenamiento.")
-            print("NO se podrán subir imágenes a Drive sin OAuth.\n")
-            print("SOLUCIÓN:")
-            print("  1. Ejecuta: python setup_oauth_drive.py")
-            print("  2. Completa la autenticación")
-            print("  3. Reinicia el servidor")
-            print("=" * 70 + "\n")
-            # Usar service account como fallback (solo para lectura)
+                print("✅ Usando credenciales Service Account desde archivo local")
+                creds = Credentials.from_service_account_file(credentials_path, scopes=scopes)
+            
+            self.client = gspread.authorize(creds)
             self.drive_service = build('drive', 'v3', credentials=creds)
         
         # IDs de las hojas - leer desde secrets o env
@@ -122,8 +111,8 @@ class GoogleSheetsService:
         self._output_sheet = None
         self._whatsapp_log_sheet = None
     
-    def _init_drive_service_oauth(self):
-        """Inicializa servicio de Drive con OAuth (evita límites de cuota)."""
+    def _load_oauth_credentials(self):
+        """Carga credenciales OAuth desde archivo o variable de entorno."""
         try:
             from google.oauth2.credentials import Credentials
             import base64
@@ -156,57 +145,48 @@ class GoogleSheetsService:
                         creds.refresh(Request())
                         print("✅ Token renovado")
                     
+                    return creds
+                    
                 except Exception as env_error:
                     print(f"⚠️  Error al cargar desde variable de entorno: {env_error}")
-                    creds = None
             
             # MÉTODO 2: Cargar desde archivo local (DESARROLLO LOCAL)
-            if not creds:
-                token_path = 'token_drive.pickle'
-                print(f"🔍 Buscando token OAuth en archivo: {token_path}")
+            token_path = 'token_drive.pickle'
+            print(f"🔍 Buscando token OAuth en archivo: {token_path}")
+            
+            if os.path.exists(token_path):
+                print(f"✅ Archivo {token_path} encontrado")
+                with open(token_path, 'rb') as token:
+                    creds = pickle.load(token)
+                print(f"📝 Token cargado. Válido: {creds.valid if creds else 'N/A'}")
                 
-                if os.path.exists(token_path):
-                    print(f"✅ Archivo {token_path} encontrado")
-                    with open(token_path, 'rb') as token:
-                        creds = pickle.load(token)
-                    print(f"📝 Token cargado. Válido: {creds.valid if creds else 'N/A'}, Expirado: {creds.expired if creds else 'N/A'}")
-                    
-                    # Verificar si necesita refresh
-                    if creds and creds.expired and creds.refresh_token:
-                        print("🔄 Token expirado, intentando renovar...")
-                        try:
-                            creds.refresh(Request())
-                            # Guardar token actualizado
-                            with open(token_path, 'wb') as token:
-                                pickle.dump(creds, token)
-                            print("✅ Token renovado exitosamente")
-                            if hasattr(creds, 'expiry'):
-                                print(f"📅 Nuevo token válido hasta: {creds.expiry}")
-                        except Exception as refresh_error:
-                            print(f"❌ Error al renovar token: {refresh_error}")
-                            print("   Refresh token expirado o revocado")
-                            print("   Ejecuta: python setup_oauth_drive.py")
-                            return None
-                    elif creds and not creds.valid and not creds.refresh_token:
-                        print("❌ Token sin refresh_token. Necesitas re-autenticar")
+                # Verificar si necesita refresh
+                if creds and creds.expired and creds.refresh_token:
+                    print("🔄 Token expirado, intentando renovar...")
+                    try:
+                        creds.refresh(Request())
+                        # Guardar token actualizado
+                        with open(token_path, 'wb') as token:
+                            pickle.dump(creds, token)
+                        print("✅ Token renovado exitosamente")
+                        if hasattr(creds, 'expiry'):
+                            print(f"📅 Nuevo token válido hasta: {creds.expiry}")
+                    except Exception as refresh_error:
+                        print(f"❌ Error al renovar token: {refresh_error}")
                         print("   Ejecuta: python setup_oauth_drive.py")
                         return None
-                else:
-                    print(f"❌ Archivo {token_path} NO encontrado")
-                    print("   📝 Para desarrollo local: python setup_oauth_drive.py")
-                    print("   📝 Para Render: configura DRIVE_OAUTH_TOKEN_BASE64")
+                elif creds and not creds.valid:
+                    print("❌ Token inválido sin refresh_token")
+                    print("   Ejecuta: python setup_oauth_drive.py")
                     return None
-            
-            # Si hay credenciales válidas, crear servicio
-            if creds and creds.valid:
-                print("✅ Usando OAuth para Google Drive (sin límites de cuota)")
-                return build('drive', 'v3', credentials=creds)
+                
+                return creds if creds and creds.valid else None
             else:
-                print(f"❌ Credenciales inválidas. Valid: {creds.valid if creds else 'N/A'}")
+                print(f"ℹ️  Archivo {token_path} NO encontrado")
                 return None
             
         except Exception as e:
-            print(f"❌ Error al cargar OAuth para Drive: {e}")
+            print(f"❌ Error al cargar OAuth: {e}")
             import traceback
             traceback.print_exc()
             return None
