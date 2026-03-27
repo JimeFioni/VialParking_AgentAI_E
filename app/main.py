@@ -368,8 +368,20 @@ async def webhook_whatsapp(
                     return "OK"
         
         # FLUJO PRINCIPAL: Detectar número(s) de ítem en el mensaje
+        # GUARDA: No interrumpir flujos activos con detección de número nuevo
         import re
-        if Body and re.search(r'\d+', Body):
+        _estados_activos_no_interrumpir = [
+            'esperando_imagenes_antes',
+            'en_trabajo',
+            'esperando_imagenes_despues',
+            'esperando_observacion',
+        ]
+        _estado_check = conversation_states.get(whatsapp_number, {})
+        _en_flujo_activo = (
+            _estado_check.get('modo') == 'multiple' or
+            _estado_check.get('estado') in _estados_activos_no_interrumpir
+        )
+        if Body and re.search(r'\d+', Body) and not _en_flujo_activo:
             print(f"🔍 Detectado número(s) de ítem en mensaje: {Body}")
             
             # Extraer TODOS los números del mensaje
