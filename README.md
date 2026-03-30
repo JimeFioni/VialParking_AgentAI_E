@@ -72,7 +72,7 @@ Sistema completo de gestión de cartelería vial para la infraestructura de gaso
 
 ```python
 fastapi>=0.115.6
-google-generativeai>=0.8.6
+google-generativeai
 gspread>=6.1.4
 twilio>=9.4.1
 streamlit>=1.41.1
@@ -126,8 +126,8 @@ GEMINI_API_KEY=tu_api_key
 
 # Google Sheets
 GOOGLE_SHEETS_CREDENTIALS_PATH=credentials.json
-ECOGAS_SHEET_ID=1d2WIsyCIETfMdRgSoE3nk9-bxIO_sySKqTVJHVwMV8Q
-IMAGENES_CARTELES_FOLDER_ID=1QszrmYD6QwFpu_M8Wsg9T1PPr6tJPzls
+ECOGAS_SHEET_ID=xxxxxxxxxxxx
+IMAGENES_CARTELES_FOLDER_ID=xxxxxxxxxxxxx
 
 # Twilio WhatsApp
 TWILIO_ACCOUNT_SID=tu_account_sid
@@ -241,8 +241,8 @@ GEMINI_API_KEY=xxx
 TWILIO_ACCOUNT_SID=xxx
 TWILIO_AUTH_TOKEN=xxx
 TWILIO_WHATSAPP_NUMBER=whatsapp:+12495440560
-ECOGAS_SHEET_ID=1d2WIsyCIETfMdRgSoE3nk9-bxIO_sySKqTVJHVwMV8Q
-OUTPUT_SHEET_ID=1qKQxWRcN1bjbavw2BgYPjh0rA0VaoaDfTHt_8COAVKw
+ECOGAS_SHEET_ID=
+OUTPUT_SHEET_ID=
 # ... otros IDs
 ```
 
@@ -325,7 +325,7 @@ graph LR
 ## � Planillas y Datos
 
 ### Google Sheets - Planilla ECOGAS (INPUT)
-- **ID**: `1d2WIsyCIETfMdRgSoE3nk9-bxIO_sySKqTVJHVwMV8Q`
+- **ID**: `xxxxxxxxxxxxxxx
 - **287+ carteles** con georreferencias completas
 - **Columnas principales**:
   - `A`: N° Item
@@ -336,7 +336,7 @@ graph LR
 - **Uso**: Base de datos master de carteles
 
 ### Google Sheets - Planilla OUTPUT (REGISTROS)
-- **ID**: `1qKQxWRcN1bjbavw2BgYPjh0rA0VaoaDfTHt_8COAVKw`
+- **ID**: xxxxxxxxxxxx
 - **Hoja**: "Insta Señalizaciones Anexo 2"
 - **Columnas principales**:
   - `D`: Fecha Ejecución
@@ -352,7 +352,7 @@ graph LR
 
 ### Google Drive - Almacenamiento
 - **Carpeta Imágenes Carteles**: Items individuales
-- **Carpeta OUTPUT Imágenes**: `19YQCBODmkk_dCssMBB2GuNPfQs5oaUmV`
+- **Carpeta OUTPUT Imágenes**: xxxxxxxxxxx
 - **Estructura**: `/Item XXX/Fotos XXX-001` al `006`
 - **Permisos**: Service Account con acceso de escritura
 
