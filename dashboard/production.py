@@ -12,8 +12,10 @@ import hashlib
 
 # Agregar el directorio padre al path para importar los servicios
 sys.path.append(str(Path(__file__).parent.parent))
+sys.path.append(str(Path(__file__).parent))
 
 from services.google_sheets import GoogleSheetsService
+from i18n import t, language_selector
 
 # ==================== SISTEMA DE AUTENTICACIÓN ====================
 
@@ -48,33 +50,33 @@ def get_users():
 
 def login_form():
     """Formulario de login en sidebar"""
-    with st.sidebar.expander("🔐 Login (Opcional - Solo para editar)", expanded=not st.session_state.authenticated):
+    with st.sidebar.expander(t("login_expander"), expanded=not st.session_state.authenticated):
         if st.session_state.authenticated:
-            st.success(f"✅ Conectado como: {st.session_state.username}")
-            st.caption(f"Rol: {st.session_state.user_role}")
-            if st.button("🚪 Cerrar sesión", width="stretch"):
+            st.success(t("login_connected_as", user=st.session_state.username))
+            st.caption(t("login_role", role=st.session_state.user_role))
+            if st.button(t("login_logout"), width="stretch"):
                 st.session_state.authenticated = False
                 st.session_state.user_role = 'viewer'
                 st.session_state.username = None
                 st.rerun()
         else:
-            st.info("📊 Modo público: Solo visualización")
-            username = st.text_input("Usuario", key="login_username")
-            password = st.text_input("Contraseña", type="password", key="login_password")
+            st.info(t("login_public_mode"))
+            username = st.text_input(t("login_user"), key="login_username")
+            password = st.text_input(t("login_password"), type="password", key="login_password")
             
-            if st.button("Iniciar sesión", width="stretch"):
+            if st.button(t("login_signin"), width="stretch"):
                 users = get_users()
                 if username in users:
                     if users[username]["password"] == hash_password(password):
                         st.session_state.authenticated = True
                         st.session_state.user_role = users[username]["role"]
                         st.session_state.username = username
-                        st.success(f"✅ Bienvenido {username}!")
+                        st.success(t("login_welcome", user=username))
                         st.rerun()
                     else:
-                        st.error("❌ Contraseña incorrecta")
+                        st.error(t("login_wrong_password"))
                 else:
-                    st.error("❌ Usuario no encontrado")
+                    st.error(t("login_user_not_found"))
 
 def is_admin():
     """Verifica si el usuario actual es admin"""
@@ -108,10 +110,13 @@ try:
         if os.path.exists(logo_path):
             st.sidebar.image(logo_path)
 except Exception as e:
-    st.sidebar.error(f"Logo no encontrado: {e}")
+    st.sidebar.error(t("logo_not_found", error=e))
 
 # Sistema de autenticación (login opcional para editar)
 login_form()
+
+# Selector de idioma
+language_selector()
 
 st.sidebar.markdown("---")
 
@@ -380,8 +385,8 @@ def init_services():
         sheets_service = GoogleSheetsService()
         return sheets_service
     except Exception as e:
-        st.error(f"❌ Error al inicializar Google Sheets: {str(e)}")
-        st.info("💡 Verifica que las credenciales estén configuradas correctamente")
+        st.error(t("init_sheets_error", error=str(e)))
+        st.info(t("init_credentials_hint"))
         return None
 
 sheets_service = init_services()
@@ -431,62 +436,71 @@ except Exception as e:
     pass
 
 # Título principal
-st.title("🚦 VIAL PARKING SA al servicio de ECOGAS")
-st.markdown("### Sistema Integral de Señalización de Gasoductos y Ramales")
+st.title(t("app_title"))
+st.markdown(t("app_subtitle"))
 
 st.markdown("---")
 
 # Sidebar - Panel de Control
 with st.sidebar:
-    st.header("⚙️ Panel de Control")
+    st.header(t("control_panel"))
     
     # Modo de vista
     modo = st.radio(
-        "Modo de Vista",
+        t("view_mode"),
         ["📊 Dashboard Principal", 
          "💬 WhatsApp", 
          "📋 Órdenes de Trabajo", 
          "🗺️ Zonas y Ramales",
-         "� Gestión de Stock", 
+         "📦 Gestión de Stock", 
          "👷 Gestión de Empleados",
          "📈 Reportes y Estadísticas"],
-        index=0
+        index=0,
+        format_func=lambda x: {
+            "📊 Dashboard Principal": t("mode_dashboard"),
+            "💬 WhatsApp": t("mode_whatsapp"),
+            "📋 Órdenes de Trabajo": t("mode_orders"),
+            "🗺️ Zonas y Ramales": t("mode_zones"),
+            "📦 Gestión de Stock": t("mode_stock"),
+            "👷 Gestión de Empleados": t("mode_employees"),
+            "📈 Reportes y Estadísticas": t("mode_reports"),
+        }.get(x, x)
     )
     
     st.markdown("---")
     
     # Estado del sistema en producción
-    st.subheader("📡 Estado del Sistema")
+    st.subheader(t("system_status"))
     if sheets_service:
-        st.success("✅ Google Sheets: Conectado")
+        st.success(t("sheets_connected"))
         try:
             # Verificar última actualización
             carteles_test = sheets_service.obtener_carteles_ecogas()
-            st.info(f"📋 {len(carteles_test)} carteles en base de datos")
+            st.info(t("signs_in_db", count=len(carteles_test)))
         except Exception as e:
-            st.warning("⚠️ Error al cargar datos")
+            st.warning(t("error_loading_data"))
     else:
-        st.error("❌ Google Sheets: Desconectado")
-        st.warning("⚠️ Sistema en modo limitado")
+        st.error(t("sheets_disconnected"))
+        st.warning(t("limited_mode"))
     
     # Opciones de actualización
     st.markdown("---")
-    st.subheader("🔄 Actualización de Datos")
+    st.subheader(t("data_refresh"))
     
     col_btn1, col_btn2 = st.columns(2)
     with col_btn1:
-        if st.button("🔄 Actualizar", width="stretch"):
+        if st.button(t("btn_refresh"), width="stretch"):
             st.cache_data.clear()
             st.rerun()
     
     with col_btn2:
-        if st.button("🧹 Limpiar", width="stretch"):
+        if st.button(t("btn_clear"), width="stretch"):
             st.cache_resource.clear()
             st.cache_data.clear()
             st.rerun()
     
     # Última actualización
-    st.caption(f"🕐 Última actualización: {datetime.now().strftime('%H:%M:%S')}")
+    st.caption(t("last_update", time=datetime.now().strftime('%H:%M:%S')))
 
 
 # ===== FUNCIONES DE CACHE PARA PRODUCCIÓN =====
@@ -497,7 +511,7 @@ def get_carteles_cached():
         try:
             return sheets_service.obtener_carteles_ecogas()
         except Exception as e:
-            st.error(f"Error al obtener carteles: {str(e)}")
+            st.error(t("error_get_signs", error=str(e)))
             return []
     return []
 
@@ -508,7 +522,7 @@ def get_empleados_cached():
         try:
             return sheets_service.obtener_empleados()
         except Exception as e:
-            st.error(f"Error al obtener empleados: {str(e)}")
+            st.error(t("error_get_employees", error=str(e)))
             return []
     return []
 
@@ -519,7 +533,7 @@ def get_stock_cached():
         try:
             return sheets_service.obtener_stock()
         except Exception as e:
-            st.error(f"Error al obtener stock: {str(e)}")
+            st.error(t("error_get_stock", error=str(e)))
             return {}
     return {}
 
@@ -530,7 +544,7 @@ def get_ordenes_cached():
         try:
             return sheets_service.obtener_ordenes()
         except Exception as e:
-            st.error(f"Error al obtener órdenes: {str(e)}")
+            st.error(t("error_get_orders", error=str(e)))
             return []
     return []
 
@@ -567,7 +581,7 @@ def get_items_ejecutados_cached():
                 
                 return items_ejecutados
         except Exception as e:
-            st.error(f"Error al obtener items ejecutados: {str(e)}")
+            st.error(t("error_get_executed", error=str(e)))
             return {}
     return {}
 
@@ -663,7 +677,7 @@ def get_items_en_proceso_cached():
             return set()
     return set()
 
-@st.cache_data(ttl=3, show_spinner="🔄 Actualizando datos...")  # Cache de 3 segundos
+@st.cache_data(ttl=3, show_spinner=False)  # Cache de 3 segundos
 def get_trabajos_output():
     """Lee trabajos completados desde la planilla OUTPUT (pestaña: Insta Señalizaciones Anexo 2)"""
     if sheets_service:
@@ -727,7 +741,7 @@ def get_trabajos_output():
                 
                 return trabajos
         except Exception as e:
-            st.error(f"❌ Error al leer OUTPUT: {e}")
+            st.error(t("error_read_output", error=e))
             import traceback
             print(f"Error completo: {traceback.format_exc()}")
     return []
@@ -735,12 +749,12 @@ def get_trabajos_output():
 
 # ===== MODO: DASHBOARD PRINCIPAL =====
 if modo == "📊 Dashboard Principal":
-    st.header("📊 Panel de Control Ejecutivo")
+    st.header(t("dashboard_exec_header"))
     
     # Verificar conexión
     if not sheets_service:
-        st.error("❌ Sistema en modo limitado. No se puede conectar con Google Sheets.")
-        st.info("💡 Por favor, verifica la configuración de las credenciales.")
+        st.error(t("dashboard_no_connection"))
+        st.info(t("dashboard_check_credentials"))
         st.stop()
     
     # Métricas principales
@@ -754,9 +768,9 @@ if modo == "📊 Dashboard Principal":
             <div class='metric-card'>
                 <h3>📋</h3>
                 <h2>{}</h2>
-                <p>Total Carteles</p>
+                <p>{}</p>
             </div>
-            """.format(len(carteles)), unsafe_allow_html=True)
+            """.format(len(carteles), t("metric_total_signs")), unsafe_allow_html=True)
         
         with col2:
             items_ejecutados = get_items_ejecutados_cached()
@@ -765,9 +779,9 @@ if modo == "📊 Dashboard Principal":
             <div class='metric-card'>
                 <h3>✅</h3>
                 <h2>{}</h2>
-                <p>Ejecutados ({})</p>
+                <p>{}</p>
             </div>
-            """.format(len(items_ejecutados), porcentaje), unsafe_allow_html=True)
+            """.format(len(items_ejecutados), t("metric_executed", pct=porcentaje)), unsafe_allow_html=True)
         
         with col3:
             ramales = set([' '.join(c.get('gasoducto_ramal', '').split()) for c in carteles if c.get('gasoducto_ramal')])
@@ -775,9 +789,9 @@ if modo == "📊 Dashboard Principal":
             <div class='metric-card'>
                 <h3>🔧</h3>
                 <h2>{}</h2>
-                <p>Ramales Activos</p>
+                <p>{}</p>
             </div>
-            """.format(len(ramales)), unsafe_allow_html=True)
+            """.format(len(ramales), t("metric_active_branches")), unsafe_allow_html=True)
         
         with col4:
             zonas = set([c.get('zona', 'Sin zona') for c in carteles if c.get('zona')])
@@ -785,17 +799,17 @@ if modo == "📊 Dashboard Principal":
             <div class='metric-card'>
                 <h3>🗺️</h3>
                 <h2>{}</h2>
-                <p>Zonas Operativas</p>
+                <p>{}</p>
             </div>
-            """.format(len(zonas)), unsafe_allow_html=True)
+            """.format(len(zonas), t("metric_operational_zones")), unsafe_allow_html=True)
     
     except Exception as e:
-        st.error(f"❌ Error al cargar métricas: {str(e)}")
+        st.error(t("metrics_load_error", error=str(e)))
     
     st.markdown("---")
     
     # Alertas y notificaciones
-    st.subheader("🔔 Alertas y Notificaciones")
+    st.subheader(t("alerts_notifications"))
     
     col_alert1, col_alert2, col_alert3 = st.columns(3)
     
@@ -807,24 +821,24 @@ if modo == "📊 Dashboard Principal":
             
             for tipo_cartel, cantidad in stock.items():
                 if cantidad <= 5:
-                    alertas_criticas.append(f"{tipo_cartel}: {cantidad} unidades")
+                    alertas_criticas.append(t("units_line", name=tipo_cartel, qty=cantidad))
             
             if alertas_criticas:
                 st.markdown(f"""
                 <div class='alert-critical'>
-                    <strong>🔴 STOCK CRÍTICO ({len(alertas_criticas)})</strong><br/>
+                    <strong>{t("stock_critical")} ({len(alertas_criticas)})</strong><br/>
                     {'<br/>'.join(alertas_criticas[:3])}
                 </div>
                 """, unsafe_allow_html=True)
             else:
-                st.markdown("""
+                st.markdown(f"""
                 <div class='alert-success'>
-                    <strong>✅ STOCK CRÍTICO OK</strong><br/>
-                    Sin alertas críticas
+                    <strong>{t("stock_critical_ok")}</strong><br/>
+                    {t("no_critical_alerts")}
                 </div>
                 """, unsafe_allow_html=True)
         except Exception as e:
-            st.warning(f"⚠️ Error: {str(e)}")
+            st.warning(t("warn_error", error=str(e)))
     
     with col_alert2:
         # Alertas de stock bajo
@@ -834,24 +848,24 @@ if modo == "📊 Dashboard Principal":
             
             for tipo_cartel, cantidad in stock.items():
                 if cantidad > 5 and cantidad <= 10:
-                    alertas_advertencia.append(f"{tipo_cartel}: {cantidad} unidades")
+                    alertas_advertencia.append(t("units_line", name=tipo_cartel, qty=cantidad))
             
             if alertas_advertencia:
                 st.markdown(f"""
                 <div class='alert-warning'>
-                    <strong>⚠️ STOCK BAJO ({len(alertas_advertencia)})</strong><br/>
+                    <strong>{t("stock_low")} ({len(alertas_advertencia)})</strong><br/>
                     {'<br/>'.join(alertas_advertencia[:3])}
                 </div>
                 """, unsafe_allow_html=True)
             else:
-                st.markdown("""
+                st.markdown(f"""
                 <div class='alert-success'>
-                    <strong>✅ STOCK BAJO OK</strong><br/>
-                    Sin alertas de stock bajo
+                    <strong>{t("stock_low_ok")}</strong><br/>
+                    {t("no_low_alerts")}
                 </div>
                 """, unsafe_allow_html=True)
         except Exception as e:
-            st.warning(f"⚠️ Error: {str(e)}")
+            st.warning(t("warn_error", error=str(e)))
     
     with col_alert3:
         # Alertas de órdenes pendientes
@@ -862,15 +876,15 @@ if modo == "📊 Dashboard Principal":
             if ordenes_urgentes:
                 st.markdown(f"""
                 <div class='alert-critical'>
-                    <strong>🚨 ÓRDENES URGENTES ({len(ordenes_urgentes)})</strong><br/>
-                    Atención inmediata requerida
+                    <strong>{t("orders_urgent")} ({len(ordenes_urgentes)})</strong><br/>
+                    {t("immediate_attention")}
                 </div>
                 """, unsafe_allow_html=True)
             else:
-                st.markdown("""
+                st.markdown(f"""
                 <div class='alert-success'>
-                    <strong>✅ ÓRDENES OK</strong><br/>
-                    Sin órdenes urgentes
+                    <strong>{t("orders_ok")}</strong><br/>
+                    {t("no_urgent_orders")}
                 </div>
                 """, unsafe_allow_html=True)
         except:
@@ -882,7 +896,7 @@ if modo == "📊 Dashboard Principal":
     col_dist1, col_dist2 = st.columns(2)
     
     with col_dist1:
-        st.subheader("📊 Distribución por Tipo de Cartel")
+        st.subheader(t("dist_by_type"))
         try:
             carteles = get_carteles_cached()
             if carteles:
@@ -902,12 +916,12 @@ if modo == "📊 Dashboard Principal":
                 
                 st.dataframe(df_tipos, hide_index=True, width="stretch")
             else:
-                st.info("No hay datos para mostrar")
+                st.info(t("no_data"))
         except Exception as e:
-            st.error(f"Error: {str(e)}")
+            st.error(t("error_generic", error=str(e)))
     
     with col_dist2:
-        st.subheader("🗺️ Top 10 Zonas")
+        st.subheader(t("top10_zones"))
         try:
             carteles = get_carteles_cached()
             if carteles:
@@ -925,14 +939,14 @@ if modo == "📊 Dashboard Principal":
                 
                 st.dataframe(df_zonas, hide_index=True, width="stretch")
             else:
-                st.info("No hay datos para mostrar")
+                st.info(t("no_data"))
         except Exception as e:
-            st.error(f"Error: {str(e)}")
+            st.error(t("error_generic", error=str(e)))
     
     st.markdown("---")
     
     # Mapa interactivo
-    st.subheader("📍 Mapa Interactivo de Carteles")
+    st.subheader(t("interactive_map"))
     
     # Filtros del mapa
     col_f1, col_f2, col_f3 = st.columns(3)
@@ -942,7 +956,7 @@ if modo == "📊 Dashboard Principal":
             carteles_temp = get_carteles_cached()
             tipos_cartel = sorted(list(set([c.get('tipo_cartel', 'Cartel') for c in carteles_temp if c.get('tipo_cartel')])))
             tipo_filtro = st.multiselect(
-                "Filtrar por tipo",
+                t("filter_by_type"),
                 options=tipos_cartel,
                 default=[]
             )
@@ -953,12 +967,12 @@ if modo == "📊 Dashboard Principal":
         try:
             carteles_temp = get_carteles_cached()
             ramales = sorted(list(set([' '.join(c.get('gasoducto_ramal', '').split()) for c in carteles_temp if c.get('gasoducto_ramal')])))
-            ramal_filtro = st.selectbox("Filtrar por ramal", ["Todos"] + ramales, key="ramal_filtro_mapa")
+            ramal_filtro = st.selectbox(t("filter_by_branch"), ["Todos"] + ramales, key="ramal_filtro_mapa")
         except:
             ramal_filtro = "Todos"
     
     with col_f3:
-        busqueda = st.text_input("Buscar por ubicación")
+        busqueda = st.text_input(t("search_by_location"))
     
     # Generar mapa
     try:
@@ -1007,26 +1021,26 @@ if modo == "📊 Dashboard Principal":
                 fecha_ejecucion = None
                 if num_item in items_ejecutados:
                     color = 'green'
-                    estado = '✅ EJECUTADO'
+                    estado = t("map_executed")
                     fecha_ejecucion = items_ejecutados[num_item]
                     ejecutados += 1
                 elif num_item in items_en_proceso:
                     color = 'red'
-                    estado = '🔴 EN PROCESO'
+                    estado = t("map_in_progress")
                     en_proceso += 1
                 else:
                     color = 'orange'
-                    estado = '⏳ PENDIENTE'
+                    estado = t("map_pending")
                     pendientes += 1
                 
                 popup_html = f"""
                 <div style='width: 250px;'>
-                    <h4>📋 Item {cartel.get('numero', 'N/A')}</h4>
-                    <p><strong>Estado:</strong> {estado}</p>
-                    <p><strong>Tipo:</strong> {cartel.get('tipo_cartel', 'N/A')}</p>
-                    <p><strong>Ramal:</strong> {cartel.get('gasoducto_ramal', 'N/A')}</p>
-                    <p><strong>Ubicación:</strong> {cartel.get('ubicacion', 'N/A')}</p>
-                    <p><strong>Zona:</strong> {cartel.get('zona', 'N/A')}</p>
+                    <h4>{t("popup_item", num=cartel.get('numero', 'N/A'))}</h4>
+                    <p><strong>{t("popup_status")}:</strong> {estado}</p>
+                    <p><strong>{t("popup_type")}:</strong> {cartel.get('tipo_cartel', 'N/A')}</p>
+                    <p><strong>{t("popup_branch")}:</strong> {cartel.get('gasoducto_ramal', 'N/A')}</p>
+                    <p><strong>{t("popup_location")}:</strong> {cartel.get('ubicacion', 'N/A')}</p>
+                    <p><strong>{t("popup_zone")}:</strong> {cartel.get('zona', 'N/A')}</p>
                 </div>
                 """
                 
@@ -1034,7 +1048,7 @@ if modo == "📊 Dashboard Principal":
                 tooltip_lineas = []
                 if fecha_ejecucion:
                     tooltip_lineas.append(f"📅 {fecha_ejecucion}")
-                tooltip_lineas.append(f"📋 Item: {cartel.get('numero', 'N/A')}")
+                tooltip_lineas.append(t("tooltip_item", num=cartel.get('numero', 'N/A')))
                 tooltip_lineas.append(f"🚰 {cartel.get('gasoducto_ramal', 'N/A')}")
                 tooltip_lineas.append(f"🏷️ {cartel.get('tipo_cartel', 'N/A')}")
                 
@@ -1063,49 +1077,50 @@ if modo == "📊 Dashboard Principal":
             # Mostrar estadísticas del mapa
             col_stat1, col_stat2, col_stat3, col_stat4 = st.columns(4)
             with col_stat1:
-                st.metric("✅ Ejecutados", ejecutados)
+                st.metric(t("executed"), ejecutados)
             with col_stat2:
-                st.metric("🔴 En Proceso", en_proceso)
+                st.metric(t("in_progress"), en_proceso)
             with col_stat3:
-                st.metric("⏳ Pendientes", pendientes)
+                st.metric(t("pending"), pendientes)
             with col_stat4:
-                st.metric("📊 Total", len(carteles_filtrados))
+                st.metric(t("total"), len(carteles_filtrados))
             
             st_folium(m, width=1200, height=600)
         else:
-            st.info("No se encontraron carteles con los filtros aplicados")
+            st.info(t("no_signs_filtered"))
     
     except Exception as e:
-        st.error(f"❌ Error al generar mapa: {str(e)}")
+        st.error(t("map_gen_error", error=str(e)))
 
 
 # ===== MODO: WHATSAPP =====
 elif modo == "💬 WhatsApp":
-    st.header("💬 Integración WhatsApp + Twilio")
+    st.header(t("wa_header"))
     
-    st.success("🟢 **Sistema Activo**: Flujo completo de registro de trabajos con fotos ANTES/DESPUÉS funcionando en tiempo real")
+    st.success(t("wa_active"))
     
     # Usar función global get_trabajos_output() definida arriba
     
-    tab1, tab2 = st.tabs(["📱 Flujo del Sistema", "💻 Registrar desde PC"])
+    tab1, tab2 = st.tabs([t("wa_tab_flow"), t("wa_tab_pc")])
     
     # Tab 1: Flujo del sistema
     with tab1:
-        st.subheader("💬 Flujo del Sistema - Dos Modos Disponibles")
-        st.info("🤖 **Este es el flujo real funcionando con Twilio WhatsApp**")
+        st.subheader(t("wa_flow_title"))
+        st.info(t("wa_flow_info"))
         
         # Selector de modo
         modo_ejemplo = st.radio(
-            "Selecciona el modo para ver el ejemplo:",
+            t("wa_select_mode"),
             ["📋 Modo Simple (1 cartel)", "📋 Modo Múltiple (varios carteles)"],
-            horizontal=True
+            horizontal=True,
+            format_func=lambda x: t("wa_mode_simple") if "Simple" in x else t("wa_mode_multi")
         )
         
         st.markdown("---")
         
         if modo_ejemplo == "📋 Modo Simple (1 cartel)":
-            st.markdown("### 📱 Modo Simple - Un Cartel")
-            st.caption("Ideal para trabajos individuales o urgentes")
+            st.markdown("### 📱 " + t("wa_simple_h"))
+            st.caption(t("wa_simple_caption"))
             
             # Mensaje 1: Usuario envía número
             st.markdown("""
@@ -1355,13 +1370,13 @@ elif modo == "💬 WhatsApp":
     
     # Tab 2: Registrar desde Computadora
     with tab2:
-        st.subheader("💻 Registrar Trabajo desde Computadora")
-        st.info("🖥️ **Opción para registrar trabajos sin usar WhatsApp en celular**")
+        st.subheader(t("pc_register_header"))
+        st.info(t("pc_register_info"))
         
         # Verificar permisos
         if not can_edit():
-            st.warning("🔒 **Esta función requiere autenticación**")
-            st.info("👉 Inicia sesión en la barra lateral para registrar trabajos desde la computadora.")
+            st.warning(t("auth_required"))
+            st.info(t("auth_hint_pc"))
             st.stop()
         
         # Inicializar session_state
@@ -1380,7 +1395,7 @@ elif modo == "💬 WhatsApp":
         col1, col2 = st.columns(2)
         with col1:
             ambiente = st.radio(
-                "Ambiente:",
+                t("environment"),
                 ["🧪 Sandbox (Pruebas)", "🚀 Producción"],
                 horizontal=True
             )
@@ -1400,22 +1415,22 @@ elif modo == "💬 WhatsApp":
         
         # PASO 1: Consultar Item
         if st.session_state.estado_registro == 'inicial':
-            st.markdown("### 1️⃣ Consultar Item")
+            st.markdown("### " + t("step1_query_item"))
             
             col1, col2 = st.columns([3, 1])
             
             with col1:
                 numero_item = st.text_input(
-                    "Número de Item a trabajar:",
-                    placeholder="Ej: 65",
+                    t("item_number_input"),
+                    placeholder=t("item_number_ph"),
                     key="input_numero"
                 )
             
             with col2:
                 st.markdown("<br>", unsafe_allow_html=True)
-                if st.button("🔍 Consultar", width="stretch", type="primary"):
+                if st.button(t("btn_query"), width="stretch", type="primary"):
                     if numero_item:
-                        with st.spinner("Consultando item..."):
+                        with st.spinner(t("querying_item")):
                             try:
                                 # Normalizar número (quitar ceros a la izquierda para comparación)
                                 numero_normalizado = str(int(numero_item))
@@ -1431,19 +1446,18 @@ elif modo == "💬 WhatsApp":
                                         st.session_state.estado_registro = 'esperando_antes'
                                         st.rerun()
                                     else:
-                                        st.error(f"❌ Item {numero_item} no encontrado en la base de datos")
-                                        st.error(f"❌ Item {numero_item} no encontrado en la base de datos")
-                                        st.info(f"💡 Total de items en la base: {len(carteles)}")
+                                        st.error(t("item_not_found", num=numero_item))
+                                        st.info(t("items_total_hint", count=len(carteles)))
                                 else:
-                                    st.error("❌ No hay conexión con Google Sheets")
+                                    st.error(t("no_sheets_conn"))
                             except Exception as e:
-                                st.error(f"❌ Error al consultar: {str(e)}")
+                                st.error(t("query_error", error=str(e)))
                     else:
-                        st.warning("⚠️ Por favor ingrese un número de item")
+                        st.warning(t("enter_item_warn"))
         
         # PASO 2: Subir fotos ANTES
         elif st.session_state.estado_registro == 'esperando_antes':
-            st.success(f"✅ Item encontrado: {st.session_state.item_actual}")
+            st.success(t("item_found", num=st.session_state.item_actual))
             
             # Mostrar info del cartel
             if st.session_state.info_cartel:
@@ -1458,10 +1472,10 @@ elif modo == "💬 WhatsApp":
                 """)
             
             st.markdown("---")
-            st.markdown("### 2️⃣ Subir Fotos ANTES del Trabajo")
+            st.markdown("### " + t("step2_before"))
             
             uploaded_antes = st.file_uploader(
-                "📸 Seleccione 3 fotos ANTES:",
+                t("select_3_before"),
                 type=['jpg', 'jpeg', 'png'],
                 accept_multiple_files=True,
                 key="uploader_antes"
@@ -1469,7 +1483,7 @@ elif modo == "💬 WhatsApp":
             
             if uploaded_antes:
                 if len(uploaded_antes) == 3:
-                    st.success(f"✅ {len(uploaded_antes)} fotos ANTES cargadas")
+                    st.success(t("before_loaded", count=len(uploaded_antes)))
                     
                     # Preview de fotos
                     cols = st.columns(3)
@@ -1477,16 +1491,16 @@ elif modo == "💬 WhatsApp":
                         with cols[idx]:
                             st.image(foto, caption=f"ANTES {idx+1}")
                     
-                    if st.button("➡️ Continuar con fotos DESPUÉS", width="stretch", type="primary"):
+                    if st.button(t("btn_continue_after"), width="stretch", type="primary"):
                         st.session_state.fotos_antes = uploaded_antes
                         st.session_state.estado_registro = 'esperando_despues'
                         st.rerun()
                 elif len(uploaded_antes) < 3:
-                    st.warning(f"⚠️ Se requieren 3 fotos. Has subido {len(uploaded_antes)}.")
+                    st.warning(t("need_3_photos", count=len(uploaded_antes)))
                 else:
-                    st.warning(f"⚠️ Solo se permiten 3 fotos. Has subido {len(uploaded_antes)}.")
+                    st.warning(t("only_3_photos", count=len(uploaded_antes)))
             
-            if st.button("← Cancelar", key="cancelar_antes"):
+            if st.button(t("btn_cancel"), key="cancelar_antes"):
                 st.session_state.estado_registro = 'inicial'
                 st.session_state.item_actual = None
                 st.session_state.info_cartel = None
@@ -1497,10 +1511,10 @@ elif modo == "💬 WhatsApp":
             st.success(f"✅ Item: {st.session_state.item_actual} | ✅ 3 fotos ANTES cargadas")
             
             st.markdown("---")
-            st.markdown("### 3️⃣ Subir Fotos DESPUÉS del Trabajo")
+            st.markdown("### " + t("step3_after"))
             
             uploaded_despues = st.file_uploader(
-                "📸 Seleccione 3 fotos DESPUÉS:",
+                t("select_3_after"),
                 type=['jpg', 'jpeg', 'png'],
                 accept_multiple_files=True,
                 key="uploader_despues"
@@ -1508,7 +1522,7 @@ elif modo == "💬 WhatsApp":
             
             if uploaded_despues:
                 if len(uploaded_despues) == 3:
-                    st.success(f"✅ {len(uploaded_despues)} fotos DESPUÉS cargadas")
+                    st.success(t("after_loaded", count=len(uploaded_despues)))
                     
                     # Preview de fotos
                     cols = st.columns(3)
@@ -1518,8 +1532,8 @@ elif modo == "💬 WhatsApp":
                     
                     st.markdown("---")
                     
-                    if st.button("🎉 Registrar Trabajo Completo", width="stretch", type="primary"):
-                        with st.spinner("📤 Procesando y registrando trabajo..."):
+                    if st.button(t("btn_register_complete"), width="stretch", type="primary"):
+                        with st.spinner(t("processing_register")):
                             try:
                                 numero_item = st.session_state.item_actual
                                 item_formateado = str(numero_item).zfill(3)
@@ -1560,7 +1574,7 @@ elif modo == "💬 WhatsApp":
                                 })
                                 
                                 if registro_exitoso and len(urls_antes) == 3 and len(urls_despues) == 3:
-                                    st.success("✅ Trabajo registrado exitosamente")
+                                    st.success(t("work_registered"))
                                     st.info(f"""
                                     📊 **Proceso completado:**
                                     - ✅ {len(urls_antes)} fotos ANTES guardadas en Drive
@@ -1570,7 +1584,7 @@ elif modo == "💬 WhatsApp":
                                     """)
                                     
                                     # Botón para registrar otro
-                                    if st.button("➕ Registrar otro trabajo", key="otro_trabajo"):
+                                    if st.button(t("btn_register_another"), key="otro_trabajo"):
                                         st.session_state.estado_registro = 'inicial'
                                         st.session_state.item_actual = None
                                         st.session_state.info_cartel = None
@@ -1578,7 +1592,7 @@ elif modo == "💬 WhatsApp":
                                         st.session_state.fotos_despues = []
                                         st.rerun()
                                 else:
-                                    st.error("⚠️ Error: No se completó el registro correctamente")
+                                    st.error(t("register_failed"))
                                     st.warning(f"Fotos ANTES: {len(urls_antes)}/3 | Fotos DESPUÉS: {len(urls_despues)}/3 | Registro OUTPUT: {'✅' if registro_exitoso else '❌'}")
                                     
                             except Exception as e:
@@ -1586,19 +1600,19 @@ elif modo == "💬 WhatsApp":
                                 import traceback
                                 st.code(traceback.format_exc())
                 elif len(uploaded_despues) < 3:
-                    st.warning(f"⚠️ Se requieren 3 fotos. Has subido {len(uploaded_despues)}.")
+                    st.warning(t("need_3_photos", count=len(uploaded_despues)))
                 else:
-                    st.warning(f"⚠️ Solo se permiten 3 fotos. Has subido {len(uploaded_despues)}.")
+                    st.warning(t("only_3_photos", count=len(uploaded_despues)))
             
             col1, col2 = st.columns(2)
             with col1:
-                if st.button("← Volver a fotos ANTES", key="volver_antes"):
+                if st.button(t("btn_back_before"), key="volver_antes"):
                     st.session_state.estado_registro = 'esperando_antes'
                     st.session_state.fotos_antes = []
                     st.rerun()
             
             with col2:
-                if st.button("✖️ Cancelar todo", key="cancelar_todo"):
+                if st.button(t("btn_cancel_all"), key="cancelar_todo"):
                     st.session_state.estado_registro = 'inicial'
                     st.session_state.item_actual = None
                     st.session_state.info_cartel = None
@@ -1614,35 +1628,35 @@ elif modo == "📦 Gestión de Stock":
     st.header("📦 Gestión de Stock")
     
     if sheets_service:
-        tab1, tab2, tab3 = st.tabs(["📊 Stock Actual", "📥 Registrar Movimiento", "📈 Historial"])
+        tab1, tab2, tab3 = st.tabs([t("stock_tab_current"), t("stock_tab_move"), t("stock_tab_history")])
         
         # Tab 1: Stock actual
         with tab1:
-            st.subheader("Inventario Actual")
+            st.subheader(t("current_inventory"))
             
             # Mostrar ejemplos de tipos de carteles con imágenes reales
-            st.markdown("### 🖼️ Tipos de Carteles ECOGAS")
+            st.markdown("### " + t("sign_types_ecogas"))
             col1, col2, col3, col4 = st.columns(4)
             
             with col1:
                 st.image("data/Cañeria.png", width="stretch")
-                st.markdown("<h4 style='text-align: center;'>Cañería de Gas</h4>", unsafe_allow_html=True)
-                st.markdown("<p style='text-align: center; font-size: 12px; color: #666;'>Cartel indicador de cañería individual en las cercanías</p>", unsafe_allow_html=True)
+                st.markdown("<h4 style='text-align: center;'>" + t("sign_pipe") + "</h4>", unsafe_allow_html=True)
+                st.markdown("<p style='text-align: center; font-size: 12px; color: #666;'>" + t("sign_pipe_desc") + "</p>", unsafe_allow_html=True)
             
             with col2:
                 st.image("data/Cañerias.png", width="stretch")
-                st.markdown("<h4 style='text-align: center;'>Cañerías de Gas</h4>", unsafe_allow_html=True)
-                st.markdown("<p style='text-align: center; font-size: 12px; color: #666;'>Cartel para múltiples cañerías en las cercanías</p>", unsafe_allow_html=True)
+                st.markdown("<h4 style='text-align: center;'>" + t("sign_pipes") + "</h4>", unsafe_allow_html=True)
+                st.markdown("<p style='text-align: center; font-size: 12px; color: #666;'>" + t("sign_pipes_desc") + "</p>", unsafe_allow_html=True)
             
             with col3:
                 st.image("data/Gasoducto.png", width="stretch")
-                st.markdown("<h4 style='text-align: center;'>Gasoducto</h4>", unsafe_allow_html=True)
-                st.markdown("<p style='text-align: center; font-size: 12px; color: #666;'>Cartel de gasoducto individual en las cercanías</p>", unsafe_allow_html=True)
+                st.markdown("<h4 style='text-align: center;'>" + t("sign_gasduct") + "</h4>", unsafe_allow_html=True)
+                st.markdown("<p style='text-align: center; font-size: 12px; color: #666;'>" + t("sign_gasduct_desc") + "</p>", unsafe_allow_html=True)
             
             with col4:
                 st.image("data/Gasoductos.png", width="stretch")
-                st.markdown("<h4 style='text-align: center;'>Gasoductos</h4>", unsafe_allow_html=True)
-                st.markdown("<p style='text-align: center; font-size: 12px; color: #666;'>Cartel para red de múltiples gasoductos en las cercanías</p>", unsafe_allow_html=True)
+                st.markdown("<h4 style='text-align: center;'>" + t("sign_gasducts") + "</h4>", unsafe_allow_html=True)
+                st.markdown("<p style='text-align: center; font-size: 12px; color: #666;'>" + t("sign_gasducts_desc") + "</p>", unsafe_allow_html=True)
             
             st.markdown("---")
             
@@ -1654,7 +1668,7 @@ elif modo == "📦 Gestión de Stock":
                         {
                             "Tipo de Cartel": k,
                             "Cantidad": v,
-                            "Estado": "🔴 Crítico" if v <= 5 else "⚠️ Bajo" if v <= 10 else "✅ OK"
+                            "Estado": t("stock_critical") if v <= 5 else t("stock_low") if v <= 10 else t("stock_ok")
                         }
                         for k, v in stock.items()
                     ]).sort_values("Cantidad")
@@ -1662,13 +1676,13 @@ elif modo == "📦 Gestión de Stock":
                     # Métricas
                     col1, col2, col3 = st.columns(3)
                     with col1:
-                        st.metric("Total Items", len(stock))
+                        st.metric(t("total_items"), len(stock))
                     with col2:
                         criticos = len([v for v in stock.values() if v <= 5])
-                        st.metric("Stock Crítico", criticos)
+                        st.metric(t("stock_critical_label"), criticos)
                     with col3:
                         total_unidades = sum(stock.values())
-                        st.metric("Total Unidades", total_unidades)
+                        st.metric(t("total_units"), total_unidades)
                     
                     st.markdown("---")
                     
@@ -1678,32 +1692,32 @@ elif modo == "📦 Gestión de Stock":
                     # Gráfico
                     st.bar_chart(stock_df.set_index("Tipo de Cartel")["Cantidad"])
                 else:
-                    st.info("No hay datos de stock")
+                    st.info(t("no_stock_data"))
             except Exception as e:
                 st.error(f"Error: {e}")
         
         # Tab 2: Registrar movimiento
         with tab2:
-            st.subheader("Registrar Movimiento de Stock")
+            st.subheader(t("register_movement"))
             
             # Verificar permisos
             if not can_edit():
-                st.warning("🔒 **Esta función requiere autenticación**")
-                st.info("👉 Inicia sesión en la barra lateral para registrar movimientos de stock.")
+                st.warning(t("auth_required"))
+                st.info(t("auth_hint_stock"))
                 st.stop()
             
             col1, col2 = st.columns(2)
             
             with col1:
-                tipo_movimiento = st.selectbox("Tipo de Movimiento", ["entrada", "salida"])
-                tipo_cartel = st.text_input("Tipo de Cartel")
-                cantidad = st.number_input("Cantidad", min_value=1, value=1)
+                tipo_movimiento = st.selectbox(t("movement_type"), ["entrada", "salida"])
+                tipo_cartel = st.text_input(t("sign_type"))
+                cantidad = st.number_input(t("quantity"), min_value=1, value=1)
             
             with col2:
-                operario = st.text_input("Operario")
-                notas = st.text_area("Notas", height=100)
+                operario = st.text_input(t("operator"))
+                notas = st.text_area(t("notes"), height=100)
             
-            if st.button("💾 Registrar Movimiento", type="primary"):
+            if st.button(t("btn_register_movement"), type="primary"):
                 if tipo_cartel and operario:
                     try:
                         datos = {
@@ -1715,21 +1729,21 @@ elif modo == "📦 Gestión de Stock":
                         }
                         
                         if sheets_service.registrar_movimiento_stock(datos):
-                            st.success("✅ Movimiento registrado exitosamente")
+                            st.success(t("movement_registered"))
                             
                             # Actualizar stock si es salida
                             if tipo_movimiento == "salida":
                                 sheets_service.actualizar_stock(tipo_cartel, cantidad)
                         else:
-                            st.error("❌ Error al registrar movimiento")
+                            st.error(t("movement_error"))
                     except Exception as e:
                         st.error(f"Error: {e}")
                 else:
-                    st.error("Completa todos los campos requeridos")
+                    st.error(t("complete_required"))
         
         # Tab 3: Historial
         with tab3:
-            st.subheader("Historial de Movimientos - Carteles en Trabajo")
+            st.subheader(t("history_title"))
             
             # Obtener tipos de cartel reales desde Google Sheets
             try:
@@ -1818,10 +1832,10 @@ elif modo == "📦 Gestión de Stock":
             # Filtros
             col1, col2 = st.columns(2)
             with col1:
-                filtro_tipo = st.selectbox("Filtrar por Tipo de Movimiento", 
+                filtro_tipo = st.selectbox(t("filter_by_move_type"), 
                                           ["Todos", "📤 Salida", "📥 Entrada"])
             with col2:
-                filtro_estado = st.selectbox("Filtrar por Estado",
+                filtro_estado = st.selectbox(t("filter_by_status"),
                                             ["Todos", "✅ Instalado", "🔴 En Instalación", "📦 Stock"])
             
             # Aplicar filtros
@@ -1834,16 +1848,16 @@ elif modo == "📦 Gestión de Stock":
             # Mostrar estadísticas
             col1, col2, col3, col4 = st.columns(4)
             with col1:
-                st.metric("Total Movimientos", len(df_filtrado))
+                st.metric(t("total_movements"), len(df_filtrado))
             with col2:
                 salidas = len(df_filtrado[df_filtrado["Movimiento"] == "📤 Salida"])
-                st.metric("Salidas", salidas)
+                st.metric(t("outgoing"), salidas)
             with col3:
                 entradas = len(df_filtrado[df_filtrado["Movimiento"] == "📥 Entrada"])
-                st.metric("Entradas", entradas)
+                st.metric(t("incoming"), entradas)
             with col4:
                 en_instalacion = len(df_filtrado[df_filtrado["Estado"] == "🔴 En Instalación"])
-                st.metric("En Instalación", en_instalacion)
+                st.metric(t("in_installation"), en_instalacion)
             
             st.markdown("---")
             
@@ -1851,22 +1865,22 @@ elif modo == "📦 Gestión de Stock":
             st.dataframe(df_filtrado, hide_index=True, width="stretch")
             
             # Resumen por operario
-            st.markdown("### 👷 Resumen por Operario")
+            st.markdown("### " + t("summary_by_operator"))
             operarios = df_filtrado.groupby("Operario").agg({
                 "Cantidad": "sum",
                 "Cartel": "count"
             }).rename(columns={"Cartel": "Movimientos"})
             st.dataframe(operarios, width="stretch")
     else:
-        st.error("Servicio de Google Sheets no disponible")
+        st.error(t("sheets_unavailable"))
 
 
 # ===== MODO: GESTIÓN DE EMPLEADOS =====
 elif modo == "👷 Gestión de Empleados":
-    st.header("👷 Gestión de Empleados")
+    st.header(t("emp_header"))
     
     if sheets_service:
-        tab1, tab2 = st.tabs(["📋 Lista de Empleados", "➕ Agregar Empleado"])
+        tab1, tab2 = st.tabs([t("emp_tab_list"), t("emp_tab_add")])
         
         with tab1:
             try:
@@ -1880,43 +1894,43 @@ elif modo == "👷 Gestión de Empleados":
                     activos = sum(1 for e in empleados if e.get('estado') == 'Activo')
                     
                     with col1:
-                        st.metric("Total Empleados", total)
+                        st.metric(t("total_employees"), total)
                     with col2:
-                        st.metric("Activos", activos)
+                        st.metric(t("active"), activos)
                     with col3:
-                        st.metric("Inactivos", total - activos)
+                        st.metric(t("inactive"), total - activos)
                     
                     st.markdown("---")
                     
                     df = pd.DataFrame(empleados)
                     st.dataframe(df, hide_index=True, width="stretch")
                 else:
-                    st.info("No hay empleados registrados")
+                    st.info(t("no_employees"))
             except Exception as e:
                 st.error(f"Error: {e}")
         
         with tab2:
-            st.subheader("Agregar Nuevo Empleado")
+            st.subheader(t("add_new_employee"))
             
             # Verificar permisos
             if not can_edit():
-                st.warning("🔒 **Esta función requiere autenticación**")
-                st.info("👉 Inicia sesión en la barra lateral para agregar empleados.")
+                st.warning(t("auth_required"))
+                st.info(t("auth_hint_emp"))
                 st.stop()
             
             col1, col2 = st.columns(2)
             
             with col1:
-                nombre = st.text_input("Nombre Completo")
-                telefono = st.text_input("Teléfono")
-                cargo = st.selectbox("Cargo", ["Operario", "Supervisor", "Administrador"])
+                nombre = st.text_input(t("full_name"))
+                telefono = st.text_input(t("phone"))
+                cargo = st.selectbox(t("role_label"), ["Operario", "Supervisor", "Administrador"])
             
             with col2:
                 email = st.text_input("Email")
                 whatsapp = st.text_input("WhatsApp", "+549")
-                estado = st.selectbox("Estado", ["Activo", "Inactivo"])
+                estado = st.selectbox(t("status_label"), ["Activo", "Inactivo"])
             
-            if st.button("➕ Agregar Empleado", type="primary"):
+            if st.button(t("btn_add_employee"), type="primary"):
                 if nombre and telefono:
                     try:
                         datos = {
@@ -1929,33 +1943,33 @@ elif modo == "👷 Gestión de Empleados":
                         }
                         
                         if sheets_service.agregar_empleado(datos):
-                            st.success("✅ Empleado agregado exitosamente")
+                            st.success(t("employee_added"))
                         else:
-                            st.error("❌ Error al agregar empleado")
+                            st.error(t("employee_error"))
                     except Exception as e:
                         st.error(f"Error: {e}")
                 else:
-                    st.error("Completa los campos requeridos")
+                    st.error(t("complete_required"))
     else:
-        st.error("Servicio no disponible")
+        st.error(t("service_unavailable"))
 
 
 # ===== MODO: ÓRDENES DE TRABAJO =====
 elif modo == "📋 Órdenes de Trabajo":
-    st.header("📋 Gestión de Órdenes de Trabajo")
+    st.header(t("orders_header"))
     
     # Usar función global get_trabajos_output() definida arriba
     
     if sheets_service:
-        tab1, tab2 = st.tabs(["📊 Trabajos Completados", "⏱️ Análisis de Tiempos"])
+        tab1, tab2 = st.tabs([t("orders_tab_done"), t("orders_tab_times")])
         
         # Tab 1: Trabajos Completados (movido desde WhatsApp)
         with tab1:
-            st.subheader("📊 Trabajos Registrados en Tiempo Real")
+            st.subheader(t("jobs_realtime"))
             
             col1, col2 = st.columns([3, 1])
             with col2:
-                if st.button("🔄 Actualizar Datos", width="stretch"):
+                if st.button(t("refresh_data"), width="stretch"):
                     st.cache_data.clear()
                     st.rerun()
             
@@ -1964,28 +1978,28 @@ elif modo == "📋 Órdenes de Trabajo":
             # Mostrar información de debugging
             hora_actual = datetime.now().strftime("%H:%M:%S")
             if trabajos:
-                st.caption(f"🕐 Última actualización: {hora_actual} | 📊 Última fila leída: {trabajos[-1]['fila']} | Item: #{trabajos[-1]['numero']}")
+                st.caption(t("last_update_caption", hora=hora_actual, fila=trabajos[-1]['fila'], item=trabajos[-1]['numero']))
             else:
-                st.caption(f"🕐 Última actualización: {hora_actual} | ⚠️ No se encontraron trabajos")
+                st.caption(t("last_update_none", hora=hora_actual))
             
             if trabajos:
                 # Métricas
                 col1, col2, col3, col4 = st.columns(4)
                 
                 with col1:
-                    st.metric("📊 Total Trabajos", len(trabajos))
+                    st.metric(t("total_jobs"), len(trabajos))
                 
                 with col2:
                     trabajos_hoy = [t for t in trabajos if datetime.now().strftime("%d/%m/%Y") in t['fecha']]
-                    st.metric("📅 Hoy", len(trabajos_hoy))
+                    st.metric(t("today"), len(trabajos_hoy))
                 
                 with col3:
                     trabajos_con_fotos = [t for t in trabajos if t['fotos']]
-                    st.metric("📸 Con Fotos", len(trabajos_con_fotos))
+                    st.metric(t("with_photos"), len(trabajos_con_fotos))
                 
                 with col4:
                     tipos_unicos = len(set(t['tipo'] for t in trabajos if t['tipo']))
-                    st.metric("🏷️ Tipos", tipos_unicos)
+                    st.metric(t("types"), tipos_unicos)
                 
                 st.markdown("---")
                 
@@ -1996,7 +2010,7 @@ elif modo == "📋 Órdenes de Trabajo":
                     # Obtener tipos únicos
                     tipos_disponibles = sorted(list(set([t['tipo'] for t in trabajos if t['tipo']])))
                     filtro_tipo = st.selectbox(
-                        "Filtrar por Tipo:",
+                        t("filter_by_type"),
                         ["Todos"] + tipos_disponibles
                     )
                 
@@ -2004,13 +2018,13 @@ elif modo == "📋 Órdenes de Trabajo":
                     # Obtener gasoductos/ramales únicos
                     ramales_disponibles = sorted(list(set([t['gasoducto'] for t in trabajos if t['gasoducto']])))
                     filtro_ramal = st.selectbox(
-                        "Filtrar por Gasoducto/Ramal:",
+                        t("filter_by_gasduct"),
                         ["Todos"] + ramales_disponibles
                     )
                 
                 with col3:
                     st.markdown("<br>", unsafe_allow_html=True)
-                    if st.button("🔄 Limpiar Filtros", width="stretch"):
+                    if st.button(t("clear_filters"), width="stretch"):
                         st.rerun()
                 
                 # Aplicar filtros
@@ -2022,7 +2036,7 @@ elif modo == "📋 Órdenes de Trabajo":
                 
                 # Mensaje si hay filtros activos
                 if filtro_tipo != "Todos" or filtro_ramal != "Todos":
-                    st.info(f"📊 Mostrando {len(trabajos_filtrados)} de {len(trabajos)} trabajos")
+                    st.info(t("showing_jobs", n=len(trabajos_filtrados), total=len(trabajos)))
                 
                 # Tabla de trabajos
                 df_trabajos = pd.DataFrame(trabajos_filtrados if trabajos_filtrados else trabajos)
@@ -2049,7 +2063,7 @@ elif modo == "📋 Órdenes de Trabajo":
                 # Preparar DataFrame para mostrar (solo columnas visibles)
                 df_display = df_trabajos_sorted[['fecha', 'numero', 'gasoducto', 'ubicacion', 'tipo']].copy()
                 
-                df_display.columns = ['Fecha', 'Item #', 'Gasoducto/Ramal', 'Ubicación', 'Tipo']
+                df_display.columns = [t("col_date"), t("col_item"), t("col_gasduct"), t("col_location"), t("col_type")]
                 
                 st.dataframe(
                     df_display,
@@ -2061,7 +2075,7 @@ elif modo == "📋 Órdenes de Trabajo":
                 # Detalles del último trabajo
                 if trabajos:
                     st.markdown("---")
-                    st.subheader("🔍 Último Trabajo Registrado")
+                    st.subheader(t("last_job"))
                     
                     # Obtener el trabajo más reciente por fecha (primero en el DataFrame ordenado)
                     if not df_trabajos_sorted.empty and pd.notna(df_trabajos_sorted.iloc[0]['fecha_dt']):
@@ -2099,11 +2113,11 @@ elif modo == "📋 Órdenes de Trabajo":
             
             else:
                 st.info("📭 No hay trabajos registrados aún")
-                st.markdown("Los trabajos completados aparecerán aquí automáticamente.")
+                st.markdown(t("completed_appear_here"))
         
         # Tab 2: Análisis de Tiempos de Ejecución
         with tab2:
-            st.subheader("⏱️ Análisis de Tiempos de Ejecución")
+            st.subheader(t("exec_time_analysis"))
             
             try:
                 # Obtener trabajos completados
@@ -2125,28 +2139,28 @@ elif modo == "📋 Órdenes de Trabajo":
                             trabajo['zona'] = 'Sin zona'
                     
                     # Métricas generales
-                    st.markdown("### 📊 Estadísticas Generales")
+                    st.markdown("### " + t("general_stats"))
                     col1, col2, col3, col4 = st.columns(4)
                     
                     with col1:
-                        st.metric("Total Trabajos", len(trabajos))
+                        st.metric(t("total_jobs_2"), len(trabajos))
                     
                     with col2:
                         # Calcular promedio general (simulado)
-                        st.metric("Tiempo Promedio", "3.5 días")
+                        st.metric(t("avg_time"), "3.5 " + t("days"))
                     
                     with col3:
                         tipos_unicos = len(set(t['tipo'] for t in trabajos if t['tipo']))
-                        st.metric("Tipos de Cartel", tipos_unicos)
+                        st.metric(t("sign_types_metric"), tipos_unicos)
                     
                     with col4:
                         zonas_unicas = len(set(t.get('zona', 'Sin zona') for t in trabajos))
-                        st.metric("Zonas Operativas", zonas_unicas)
+                        st.metric(t("operative_zones"), zonas_unicas)
                     
                     st.markdown("---")
                     
                     # Análisis por Tipo
-                    st.markdown("### 🏷️ Tiempos por Tipo de Cartel")
+                    st.markdown("### " + t("times_by_type"))
                     
                     # Agrupar por tipo
                     tipos_stats = {}
@@ -2162,10 +2176,10 @@ elif modo == "📋 Órdenes de Trabajo":
                         # Simular tiempos (en producción vendrían de la diferencia de fechas)
                         tiempo_simulado = 3.0 + (hash(tipo) % 4)
                         datos_tipos.append({
-                            "Tipo": tipo,
-                            "Cantidad": cantidad,
-                            "Tiempo Promedio (días)": tiempo_simulado,
-                            "Eficiencia": f"{95 - (hash(tipo) % 10)}%"
+                            t("col_type"): tipo,
+                            t("col_count"): cantidad,
+                            t("col_avg_days"): tiempo_simulado,
+                            t("col_efficiency"): f"{95 - (hash(tipo) % 10)}%"
                         })
                     
                     df_tipos = pd.DataFrame(datos_tipos)
@@ -2174,7 +2188,7 @@ elif modo == "📋 Órdenes de Trabajo":
                     st.markdown("---")
                     
                     # Análisis por Zona
-                    st.markdown("### 🗺️ Tiempos por Zona Geográfica")
+                    st.markdown("### " + t("times_by_zone"))
                     
                     # Agrupar por zona
                     zonas_stats = {}
@@ -2191,11 +2205,11 @@ elif modo == "📋 Órdenes de Trabajo":
                         # Simular tiempos por zona
                         tiempo_simulado = 3.0 + (hash(zona) % 5)
                         datos_zonas.append({
-                            "Zona": zona,
-                            "Trabajos Completados": stats['cantidad'],
-                            "Ramales Activos": len(stats['ramales']),
-                            "Tiempo Promedio (días)": f"{tiempo_simulado:.1f}",
-                            "Estado": "✅ Activo" if stats['cantidad'] > 2 else "⚠️ Bajo"
+                            t("col_zone"): zona,
+                            t("col_jobs_done"): stats['cantidad'],
+                            t("col_active_branches"): len(stats['ramales']),
+                            t("col_avg_days"): f"{tiempo_simulado:.1f}",
+                            t("col_status"): "✅ " + t("active") if stats['cantidad'] > 2 else "⚠️ " + t("low")
                         })
                     
                     df_zonas = pd.DataFrame(datos_zonas)
@@ -2206,18 +2220,18 @@ elif modo == "📋 Órdenes de Trabajo":
                         st.dataframe(df_zonas, hide_index=True, width="stretch")
                     
                     with col2:
-                        st.markdown("#### 📈 Resumen")
+                        st.markdown("#### " + t("summary"))
                         zona_mas_activa = max(zonas_stats.items(), key=lambda x: x[1]['cantidad'])[0]
-                        st.info(f"🏆 **Zona más activa:**\n{zona_mas_activa}")
+                        st.info(t("most_active_zone", zona=zona_mas_activa))
                         
                         total_ramales = sum(len(s['ramales']) for s in zonas_stats.values())
-                        st.metric("Total Ramales", total_ramales)
-                        st.metric("Promedio por Zona", f"{len(trabajos)/len(zonas_stats):.1f}")
+                        st.metric(t("total_branches"), total_ramales)
+                        st.metric(t("avg_per_zone"), f"{len(trabajos)/len(zonas_stats):.1f}")
                     
                     st.markdown("---")
                     
                     # Análisis por Gasoducto/Ramal
-                    st.markdown("### 🚰 Tiempos por Gasoducto/Ramal")
+                    st.markdown("### " + t("times_by_gasduct"))
                     
                     # Agrupar por ramal
                     ramales_stats = {}
@@ -2232,10 +2246,10 @@ elif modo == "📋 Órdenes de Trabajo":
                     for ramal, cantidad in sorted(ramales_stats.items(), key=lambda x: x[1], reverse=True)[:10]:
                         tiempo_simulado = 2.5 + (hash(ramal) % 6)
                         datos_ramales.append({
-                            "Gasoducto/Ramal": ramal,
-                            "Trabajos Completados": cantidad,
-                            "Tiempo Promedio (días)": f"{tiempo_simulado:.1f}",
-                            "Prioridad": "🔴 Alta" if cantidad > 3 else "🟢 Normal"
+                            t("col_gasduct"): ramal,
+                            t("col_jobs_done"): cantidad,
+                            t("col_avg_days"): f"{tiempo_simulado:.1f}",
+                            t("col_priority"): "🔴 " + t("high") if cantidad > 3 else "🟢 " + t("normal")
                         })
                     
                     df_ramales = pd.DataFrame(datos_ramales)
@@ -2248,7 +2262,7 @@ elif modo == "📋 Órdenes de Trabajo":
                     """)
                     
                 else:
-                    st.info("📭 No hay trabajos completados para analizar")
+                    st.info(t("no_completed_to_analyze"))
                     st.markdown("""
                     Los análisis de tiempo aparecerán aquí cuando se completen trabajos a través del sistema.
                     
@@ -2264,7 +2278,7 @@ elif modo == "📋 Órdenes de Trabajo":
                 import traceback
                 st.code(traceback.format_exc())
     else:
-        st.error("Servicio no disponible")
+        st.error(t("service_unavailable"))
 
 
 # ===== MODO: ZONAS Y RAMALES =====
@@ -2282,21 +2296,21 @@ elif modo == "🗺️ Zonas y Ramales":
                 items_en_proceso = get_items_en_proceso_cached()
                 
                 if carteles:
-                    st.subheader("🗺️ Mapa Interactivo por Zona y Ramal")
+                    st.subheader(t("map_interactive_zone"))
                     
                     # Filtros
                     col_f1, col_f2 = st.columns(2)
                     
                     with col_f1:
                         zonas = sorted(list(set([c.get('zona', 'Sin Zona') for c in carteles])))
-                        zona_filtro = st.selectbox("Filtrar por zona", ["Todas"] + zonas)
+                        zona_filtro = st.selectbox(t("filter_by_zone"), [t("all_f")] + zonas)
                     
                     with col_f2:
                         if zona_filtro != "Todas":
                             ramales_zona = sorted(list(set([c.get('gasoducto_ramal', '') for c in carteles if c.get('zona') == zona_filtro and c.get('gasoducto_ramal')])))
                         else:
                             ramales_zona = sorted(list(set([c.get('gasoducto_ramal', '') for c in carteles if c.get('gasoducto_ramal')])))
-                        ramal_filtro = st.selectbox("Filtrar por ramal", ["Todos"] + ramales_zona, key="ramal_filtro_lista_carteles")
+                        ramal_filtro = st.selectbox(t("filter_by_branch"), [t("all_m")] + ramales_zona, key="ramal_filtro_lista_carteles")
                     
                     # Filtrar carteles
                     carteles_filtrados = []
@@ -2362,7 +2376,7 @@ elif modo == "🗺️ Zonas y Ramales":
                             tooltip_lineas = []
                             if fecha_ejecucion:
                                 tooltip_lineas.append(f"📅 {fecha_ejecucion}")
-                            tooltip_lineas.append(f"📋 Item: {cartel.get('numero', 'N/A')}")
+                            tooltip_lineas.append(t("tooltip_item", num=cartel.get('numero', 'N/A')))
                             tooltip_lineas.append(f"🚰 {cartel.get('gasoducto_ramal', 'N/A')}")
                             tooltip_lineas.append(f"🏷️ {cartel.get('tipo_cartel', 'N/A')}")
                             
@@ -2391,20 +2405,20 @@ elif modo == "🗺️ Zonas y Ramales":
                         # Métricas del mapa
                         col_stat1, col_stat2, col_stat3, col_stat4 = st.columns(4)
                         with col_stat1:
-                            st.metric("📍 Total", len(carteles_filtrados))
+                            st.metric("📍 " + t("total"), len(carteles_filtrados))
                         with col_stat2:
-                            st.metric("✅ Ejecutados", ejecutados_count)
+                            st.metric("✅ " + t("executed"), ejecutados_count)
                         with col_stat3:
-                            st.metric("🔴 En Proceso", en_proceso_count)
+                            st.metric("🔴 " + t("in_process"), en_proceso_count)
                         with col_stat4:
-                            st.metric("⏳ Pendientes", pendientes_count)
+                            st.metric("⏳ " + t("pending"), pendientes_count)
                         
                         # Mostrar mapa
                         st.components.v1.html(m._repr_html_(), height=600)
                     else:
-                        st.warning("⚠️ No hay carteles que coincidan con los filtros seleccionados")
+                        st.warning(t("no_signs_filters"))
                 else:
-                    st.info("No hay datos disponibles")
+                    st.info(t("no_data"))
             except Exception as e:
                 st.error(f"Error: {e}")
         
@@ -2416,7 +2430,7 @@ elif modo == "🗺️ Zonas y Ramales":
                 items_ejecutados = {str(t['numero']).strip(): t for t in trabajos} if trabajos else {}
                 
                 if carteles:
-                    st.subheader("📋 Selecciona un Ramal")
+                    st.subheader(t("select_branch"))
                     
                     # Obtener ramales únicos (normalizados como en dashboard principal)
                     ramales = sorted(list(set([' '.join(c.get('gasoducto_ramal', '').split()) for c in carteles if c.get('gasoducto_ramal')])))
@@ -2425,27 +2439,27 @@ elif modo == "🗺️ Zonas y Ramales":
                     col1, col2, col3 = st.columns(3)
                     
                     with col1:
-                        st.metric("Total Ramales", len(ramales))
+                        st.metric(t("total_branches"), len(ramales))
                     
                     with col2:
                         total_ejecutados = len(items_ejecutados)
-                        st.metric("✅ Ejecutados", total_ejecutados)
+                        st.metric(t("executed"), total_ejecutados)
                     
                     with col3:
                         pendientes_total = len(carteles) - total_ejecutados
-                        st.metric("⏳ Pendientes", pendientes_total)
+                        st.metric(t("pending"), pendientes_total)
                     
                     st.markdown("---")
                     
                     # Selectbox para elegir ramal
                     ramal_seleccionado = st.selectbox(
-                        "🔍 Selecciona un ramal para ver detalles",
-                        options=["-- Selecciona --"] + ramales,
+                        t("select_branch_detail"),
+                        options=[t("select_placeholder")] + ramales,
                         index=0,
                         key="ramal_seleccionado_lista_ramales_tab2"
                     )
                     
-                    if ramal_seleccionado != "-- Selecciona --":
+                    if ramal_seleccionado != t("select_placeholder"):
                         # Normalizar espacios para comparar
                         carteles_ramal = [c for c in carteles if ' '.join(c.get('gasoducto_ramal', '').split()) == ramal_seleccionado]
                         
@@ -2456,11 +2470,11 @@ elif modo == "🗺️ Zonas y Ramales":
                             
                             # Estado general
                             if ejecutados == len(carteles_ramal):
-                                estado = "✅ Completado"
+                                estado = t("completed")
                             elif ejecutados > 0:
-                                estado = f"🔴 En Ejecución ({ejecutados}/{len(carteles_ramal)})"
+                                estado = t("executing", done=ejecutados, total=len(carteles_ramal))
                             else:
-                                estado = "⏳ Pendiente"
+                                estado = t("pending")
                             
                             st.markdown("---")
                             st.subheader(f"{ramal_seleccionado}")
@@ -2469,30 +2483,30 @@ elif modo == "🗺️ Zonas y Ramales":
                             col1, col2, col3, col4 = st.columns(4)
                             
                             with col1:
-                                st.metric("Total Carteles", len(carteles_ramal))
+                                st.metric(t("total_signs"), len(carteles_ramal))
                             
                             with col2:
-                                st.metric("✅ Ejecutados", ejecutados)
+                                st.metric(t("executed"), ejecutados)
                             
                             with col3:
-                                st.metric("⏳ Pendientes", pendientes)
+                                st.metric(t("pending"), pendientes)
                             
                             with col4:
                                 progreso = f"{ejecutados/len(carteles_ramal)*100:.0f}%" if carteles_ramal else "0%"
-                                st.metric("% Progreso", progreso)
+                                st.metric(t("pct_progress"), progreso)
                             
                             # Mostrar estado
-                            st.info(f"**Estado del ramal:** {estado}")
+                            st.info(t("branch_status", estado=estado))
                             
                             # Obtener zonas del ramal
                             zonas = sorted(list(set([c.get('zona', 'Sin Zona') for c in carteles_ramal])))
                             if zonas:
-                                st.write(f"**Zonas:** {', '.join(zonas)}")
+                                st.write(t("zones_label", zonas=', '.join(zonas)))
                             
                             st.markdown("---")
                             
                             # Tabla de detalles
-                            st.subheader(f"📋 Detalle de Carteles ({len(carteles_ramal)} items)")
+                            st.subheader(t("signs_detail", n=len(carteles_ramal)))
                             
                             detalle_mejorado = []
                             for c in carteles_ramal:
@@ -2506,25 +2520,25 @@ elif modo == "🗺️ Zonas y Ramales":
                                     status_emoji = "✅"
                                 
                                 detalle_mejorado.append({
-                                    'Estado': status_emoji,
+                                    t("col_status"): status_emoji,
                                     'N°': numero,
-                                    'Ubicación': c.get('ubicacion', ''),
-                                    'Coordenadas': f"{c.get('latitud', '')} , {c.get('longitud', '')}" if c.get('latitud') and c.get('longitud') else 'N/A',
-                                    'Tipo': c.get('tipo_cartel', ''),
-                                    'Ancho': c.get('ancho', 'N/A'),
-                                    'Alto': c.get('alto', 'N/A'),
-                                    'Zona': c.get('zona', 'N/A'),
-                                    'Observaciones': c.get('observaciones', ''),
-                                    'Fecha Ejecución': fecha_ejecucion
+                                    t("col_location"): c.get('ubicacion', ''),
+                                    t("col_coords"): f"{c.get('latitud', '')} , {c.get('longitud', '')}" if c.get('latitud') and c.get('longitud') else 'N/A',
+                                    t("col_type"): c.get('tipo_cartel', ''),
+                                    t("col_width"): c.get('ancho', 'N/A'),
+                                    t("col_height"): c.get('alto', 'N/A'),
+                                    t("col_zone"): c.get('zona', 'N/A'),
+                                    t("col_notes"): c.get('observaciones', ''),
+                                    t("col_exec_date"): fecha_ejecucion
                                 })
                             
                             # Mostrar DataFrame
                             df_detalle_display = pd.DataFrame(detalle_mejorado)
                             st.dataframe(df_detalle_display, hide_index=True, width="stretch", height=400)
                     else:
-                        st.info("👆 Selecciona un ramal para ver los detalles")
+                        st.info(t("select_branch_hint"))
                 else:
-                    st.info("No hay datos disponibles")
+                    st.info(t("no_data"))
             except Exception as e:
                 st.error(f"Error: {e}")
         
@@ -2536,7 +2550,7 @@ elif modo == "🗺️ Zonas y Ramales":
                 items_ejecutados = {str(t['numero']).strip(): t for t in trabajos} if trabajos else {}
                 
                 if carteles:
-                    st.subheader("📋 Selecciona un Ramal")
+                    st.subheader(t("select_branch"))
                     
                     # Obtener ramales únicos (normalizados como en dashboard principal)
                     ramales = sorted(list(set([' '.join(c.get('gasoducto_ramal', '').split()) for c in carteles if c.get('gasoducto_ramal')])))
@@ -2545,22 +2559,22 @@ elif modo == "🗺️ Zonas y Ramales":
                     col1, col2, col3 = st.columns(3)
                     
                     with col1:
-                        st.metric("Total Ramales", len(ramales))
+                        st.metric(t("total_branches"), len(ramales))
                     
                     with col2:
                         total_ejecutados = len(items_ejecutados)
-                        st.metric("✅ Ejecutados", total_ejecutados)
+                        st.metric(t("executed"), total_ejecutados)
                     
                     with col3:
                         pendientes_total = len(carteles) - total_ejecutados
-                        st.metric("⏳ Pendientes", pendientes_total)
+                        st.metric(t("pending"), pendientes_total)
                     
                     st.markdown("---")
                     
                     # Selectbox para elegir ramal
                     ramal_seleccionado = st.selectbox(
-                        "🔍 Selecciona un ramal para ver detalles",
-                        options=["-- Selecciona --"] + ramales,
+                        t("select_branch_detail"),
+                        options=[t("select_placeholder")] + ramales,
                         index=0,
                         key="ramal_seleccionado_zonas_operativas_tab3"
                     )
@@ -2576,11 +2590,11 @@ elif modo == "🗺️ Zonas y Ramales":
                             
                             # Estado general
                             if ejecutados == len(carteles_ramal):
-                                estado = "✅ Completado"
+                                estado = t("completed")
                             elif ejecutados > 0:
-                                estado = f"🔴 En Ejecución ({ejecutados}/{len(carteles_ramal)})"
+                                estado = t("executing", done=ejecutados, total=len(carteles_ramal))
                             else:
-                                estado = "⏳ Pendiente"
+                                estado = t("pending")
                             
                             st.markdown("---")
                             st.subheader(f"{ramal_seleccionado}")
@@ -2589,30 +2603,30 @@ elif modo == "🗺️ Zonas y Ramales":
                             col1, col2, col3, col4 = st.columns(4)
                             
                             with col1:
-                                st.metric("Total Carteles", len(carteles_ramal))
+                                st.metric(t("total_signs"), len(carteles_ramal))
                             
                             with col2:
-                                st.metric("✅ Ejecutados", ejecutados)
+                                st.metric(t("executed"), ejecutados)
                             
                             with col3:
-                                st.metric("⏳ Pendientes", pendientes)
+                                st.metric(t("pending"), pendientes)
                             
                             with col4:
                                 progreso = f"{ejecutados/len(carteles_ramal)*100:.0f}%" if carteles_ramal else "0%"
-                                st.metric("% Progreso", progreso)
+                                st.metric(t("pct_progress"), progreso)
                             
                             # Mostrar estado
-                            st.info(f"**Estado del ramal:** {estado}")
+                            st.info(t("branch_status", estado=estado))
                             
                             # Obtener zonas del ramal
                             zonas = sorted(list(set([c.get('zona', 'Sin Zona') for c in carteles_ramal])))
                             if zonas:
-                                st.write(f"**Zonas:** {', '.join(zonas)}")
+                                st.write(t("zones_label", zonas=', '.join(zonas)))
                             
                             st.markdown("---")
                             
                             # Tabla de detalles
-                            st.subheader(f"📋 Detalle de Carteles ({len(carteles_ramal)} items)")
+                            st.subheader(t("signs_detail", n=len(carteles_ramal)))
                             
                             detalle_mejorado = []
                             for c in carteles_ramal:
@@ -2626,31 +2640,31 @@ elif modo == "🗺️ Zonas y Ramales":
                                     status_emoji = "✅"
                                 
                                 detalle_mejorado.append({
-                                    'Estado': status_emoji,
+                                    t("col_status"): status_emoji,
                                     'N°': numero,
-                                    'Ubicación': c.get('ubicacion', ''),
-                                    'Coordenadas': f"{c.get('latitud', '')} , {c.get('longitud', '')}" if c.get('latitud') and c.get('longitud') else 'N/A',
-                                    'Tipo': c.get('tipo_cartel', ''),
-                                    'Ancho': c.get('ancho', 'N/A'),
-                                    'Alto': c.get('alto', 'N/A'),
-                                    'Zona': c.get('zona', 'N/A'),
-                                    'Observaciones': c.get('observaciones', ''),
-                                    'Fecha Ejecución': fecha_ejecucion
+                                    t("col_location"): c.get('ubicacion', ''),
+                                    t("col_coords"): f"{c.get('latitud', '')} , {c.get('longitud', '')}" if c.get('latitud') and c.get('longitud') else 'N/A',
+                                    t("col_type"): c.get('tipo_cartel', ''),
+                                    t("col_width"): c.get('ancho', 'N/A'),
+                                    t("col_height"): c.get('alto', 'N/A'),
+                                    t("col_zone"): c.get('zona', 'N/A'),
+                                    t("col_notes"): c.get('observaciones', ''),
+                                    t("col_exec_date"): fecha_ejecucion
                                 })
                             
                             # Mostrar DataFrame
                             df_detalle_display = pd.DataFrame(detalle_mejorado)
                             st.dataframe(df_detalle_display, hide_index=True, width="stretch", height=400)
                     else:
-                        st.info("👆 Selecciona un ramal para ver los detalles")
+                        st.info(t("select_branch_hint"))
                 else:
-                    st.info("No hay datos disponibles")
+                    st.info(t("no_data"))
             except Exception as e:
                 st.error(f"Error: {e}")
         
         # Tab 3: Zonas operativas
         with tab3:
-            st.subheader("📊 Análisis por Zonas Operativas")
+            st.subheader(t("zones_analysis"))
             
             try:
                 carteles = get_carteles_cached()
@@ -2673,25 +2687,25 @@ elif modo == "🗺️ Zonas y Ramales":
                     col1, col2, col3 = st.columns(3)
                     
                     with col1:
-                        st.metric("📍 Zonas", len(zonas_dict))
+                        st.metric(t("zones_label_short"), len(zonas_dict))
                     
                     with col2:
                         zona_mayor = max(zonas_dict.items(), key=lambda x: len(x[1])) if zonas_dict else ("N/A", [])
-                        st.metric("Zona Mayor", zona_mayor[0])
+                        st.metric(t("top_zone"), zona_mayor[0])
                     
                     with col3:
-                        st.metric("Carteles en Mayor", len(zona_mayor[1]))
+                        st.metric(t("signs_in_top"), len(zona_mayor[1]))
                     
                     st.markdown("---")
                     
                     # Tabla de zonas
                     df_zonas = pd.DataFrame([
                         {
-                            "Zona": zona,
-                            "Total Carteles": len(carteles_zona),
-                            "Ramales Activos": len(set([' '.join(c.get('gasoducto_ramal', '').split()) for c in carteles_zona if c.get('gasoducto_ramal')])),
-                            "Ejecutados": sum(1 for c in carteles_zona if str(c.get('numero', '')).strip() in items_ejecutados_dict),
-                            "% del Total": f"{len(carteles_zona)/len(carteles)*100:.1f}%"
+                            t("col_zone"): zona,
+                            t("total_signs"): len(carteles_zona),
+                            t("active_branches"): len(set([' '.join(c.get('gasoducto_ramal', '').split()) for c in carteles_zona if c.get('gasoducto_ramal')])),
+                            t("col_executed"): sum(1 for c in carteles_zona if str(c.get('numero', '')).strip() in items_ejecutados_dict),
+                            t("pct_of_total"): f"{len(carteles_zona)/len(carteles)*100:.1f}%"
                         }
                         for zona, carteles_zona in sorted(zonas_dict.items(), key=lambda x: len(x[1]), reverse=True)
                     ])
@@ -2701,14 +2715,14 @@ elif modo == "🗺️ Zonas y Ramales":
                     st.markdown("---")
                     
                     # Gráfico
-                    st.markdown("### 📊 Distribución de Carteles por Zona")
-                    st.bar_chart(df_zonas.set_index('Zona')['Total Carteles'])
+                    st.markdown(t("signs_by_zone_dist"))
+                    st.bar_chart(df_zonas.set_index(t("col_zone"))[t("total_signs")])
                     
                     # Detalle por zona
                     st.markdown("---")
-                    st.subheader("🔍 Detalle por Zona")
+                    st.subheader(t("zone_detail"))
                     
-                    zona_sel = st.selectbox("Selecciona una zona", sorted(list(zonas_dict.keys())))
+                    zona_sel = st.selectbox(t("select_zone"), sorted(list(zonas_dict.keys())))
                     
                     if zona_sel:
                         carteles_zona = zonas_dict[zona_sel]
@@ -2716,7 +2730,7 @@ elif modo == "🗺️ Zonas y Ramales":
                         # Calcular ejecutados en la zona
                         ejecutados_zona = sum(1 for c in carteles_zona if str(c.get('numero', '')).strip() in items_ejecutados_dict)
                         
-                        st.info(f"📍 {len(carteles_zona)} carteles en {zona_sel} | ✅ {ejecutados_zona} ejecutados")
+                        st.info(t("zone_summary", n=len(carteles_zona), zona=zona_sel, exec=ejecutados_zona))
                         
                         # Ramales en la zona
                         ramales_zona = sorted(list(set([' '.join(c.get('gasoducto_ramal', '').split()) for c in carteles_zona if c.get('gasoducto_ramal')])))
@@ -2724,14 +2738,14 @@ elif modo == "🗺️ Zonas y Ramales":
                         col1, col2 = st.columns(2)
                         
                         with col1:
-                            st.markdown("**Ramales en esta zona:**")
+                            st.markdown(t("branches_in_zone"))
                             for ramal in ramales_zona:
                                 carteles_ramal = [c for c in carteles_zona if ' '.join(c.get('gasoducto_ramal', '').split()) == ramal]
                                 ejecutados_ramal = sum(1 for c in carteles_ramal if str(c.get('numero', '')).strip() in items_ejecutados_dict)
-                                st.write(f"• {ramal} ({len(carteles_ramal)} carteles, {ejecutados_ramal} ejecutados)")
+                                st.write(t("branch_row", ramal=ramal, n=len(carteles_ramal), exec=ejecutados_ramal))
                         
                         with col2:
-                            st.markdown("**Tipos de cartel:**")
+                            st.markdown(t("sign_types"))
                             tipos = {}
                             for cartel in carteles_zona:
                                 tipo = cartel.get('tipo_cartel', 'N/A')
@@ -2746,11 +2760,11 @@ elif modo == "🗺️ Zonas y Ramales":
                         df_zona = pd.DataFrame(carteles_zona)
                         st.dataframe(df_zona, hide_index=True, width="stretch")
                 else:
-                    st.info("No hay datos disponibles")
+                    st.info(t("no_data"))
             except Exception as e:
                 st.error(f"Error: {e}")
     else:
-        st.error("Servicio no disponible")
+        st.error(t("service_unavailable"))
 
 
 # ===== MODO: REPORTES Y ESTADÍSTICAS =====
@@ -2758,7 +2772,7 @@ elif modo == "📈 Reportes y Estadísticas":
     st.header("📈 Reportes y Estadísticas - Análisis Avanzado")
     
     if not sheets_service:
-        st.error("❌ Servicio no disponible")
+        st.error("❌ " + t("service_unavailable"))
         st.stop()
     
     st.info("🚧 Sección en desarrollo - Próximamente disponible")
